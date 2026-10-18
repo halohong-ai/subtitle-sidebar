@@ -20,6 +20,15 @@ export function ImportDialog({ videoKey, durationMs, onApply, onClose }: Props) 
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
+
+  // 追加文件（可分几次选或拖入）；同名文件以后加的为准
+  const addFiles = (list: FileList | null | undefined) => {
+    const added = Array.from(list ?? []);
+    if (!added.length) return;
+    setFiles((prev) => [...prev.filter((f) => !added.some((a) => a.name === f.name)), ...added]);
+    setMessages([]);
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -54,25 +63,62 @@ export function ImportDialog({ videoKey, durationMs, onApply, onClose }: Props) 
 
   return (
     <div class="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div class="dialog" role="dialog" aria-label="导入">
+      <div
+        class={`dialog${dragging ? ' dragging' : ''}`}
+        role="dialog"
+        aria-label="导入"
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          addFiles(e.dataTransfer?.files);
+        }}
+      >
         <h3>导入</h3>
-        <p class="hint">选择 AI 返回的摘要文件（….json）；用了「中字校准」时，再选中文字幕文件（….srt）。</p>
+        <p class="hint">
+          选择 AI 返回的摘要文件（….json）；用了「中字校准」时还有中文字幕文件（….srt）。
+          两个文件可以一次选上（按住 ⌘ 或 Ctrl 多选），也可以直接拖进来。
+        </p>
         <div class="file-row">
           <button type="button" onClick={() => fileRef.current?.click()}>
             选择文件…
           </button>
-          <span class="file-names">
-            {files.length ? files.map((f) => f.name).join('、') : '未选择文件'}
-          </span>
+          {files.length === 0 && <span class="file-names">未选择文件</span>}
           <input
             ref={fileRef}
             type="file"
             multiple
             accept=".srt,.json,.txt,.md"
             hidden
-            onChange={(e) => setFiles(Array.from(e.currentTarget.files ?? []))}
+            onChange={(e) => {
+              addFiles(e.currentTarget.files);
+              e.currentTarget.value = ''; // 允许再次选择同一个文件
+            }}
           />
         </div>
+        {files.length > 0 && (
+          <ul class="file-list">
+            {files.map((f) => (
+              <li key={f.name}>
+                <span>{f.name}</span>
+                <button
+                  type="button"
+                  class="icon"
+                  aria-label={`移除 ${f.name}`}
+                  onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <p class="hint paste-hint">如果 AI 没有生成文件，而是直接回复了文字，把回复粘贴到这里：</p>
         <textarea
           rows={5}

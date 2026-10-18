@@ -495,8 +495,15 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   const zhInput = await page.evaluateHandle(() =>
     [...document.documentElement.children].find((e) => e.shadowRoot).shadowRoot.querySelector('.dialog input[type=file]'),
   );
+  // 分两次选：先选摘要 JSON，再选中文 SRT，应该两个都在
+  const sumFile = join(tmpdir(), srtName.replace('.srt', '.json'));
+  writeFileSync(sumFile, JSON.stringify(summary));
+  await zhInput.uploadFile(sumFile);
+  await sleep(200);
   await zhInput.uploadFile(zhFile);
   await sleep(200);
+  const listed = await inPanel((root) => [...root.querySelectorAll('.file-list li span')].map((x) => x.textContent));
+  check('分两次选的文件都保留在列表里', listed.length === 2 && listed.some((x) => x.endsWith('.json')) && listed.some((x) => x.endsWith('.srt')), listed.join('、'));
   await inPanel((root) => root.querySelector('.dialog .primary').click());
   await waitPanel((root) => !root.querySelector('.dialog'));
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '字幕').click());
