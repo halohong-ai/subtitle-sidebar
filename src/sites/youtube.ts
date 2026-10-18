@@ -92,7 +92,6 @@ export const youtube: SiteAdapter = {
       source: 'site',
       lang: plan.primary.track.languageCode,
       transLang: secondary ? (plan.secondary!.tlang ?? plan.secondary!.track.languageCode) : undefined,
-      transMachine: !!secondary && !!plan.secondary!.tlang,
       label: secondary ? `${plan.primary.label} + ${plan.secondary!.label}` : plan.primary.label,
       cues: buildCues(primary, primaryAsr, secondary ?? undefined),
     } satisfies Transcript;

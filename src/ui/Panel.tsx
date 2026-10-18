@@ -3,7 +3,6 @@ import type { ImportResult } from '../core/importer';
 import { notesToMarkdown } from '../core/markdown';
 import { mergeCues } from '../core/normalize';
 import { buildPrompt } from '../core/prompt';
-import { toSrt, toTxt } from '../core/srt';
 import type { Cue, Note, SummaryItem, Transcript, VideoData } from '../core/types';
 import { NoCaptionsError, type SiteAdapter } from '../sites/types';
 import {
@@ -42,10 +41,6 @@ const TABS: Array<[Tab, string]> = [
   ['summary', '摘要'],
   ['notes', '笔记'],
 ];
-
-const LANG_NAMES: Record<string, string> = {
-  en: '英文', zh: '中文', ja: '日文', ko: '韩文', fr: '法文', de: '德文', es: '西班牙文', ru: '俄文',
-};
 
 const cache = new Map<string, Transcript>();
 
@@ -185,20 +180,8 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   }
 
   const filename = safeFilename(adapter.title());
-  const hasTrans = !!transcript?.cues.some((c) => c.trans);
-  const origBase = transcript?.lang.toLowerCase().split('-')[0] ?? '';
 
   const actions = {
-    exportSrt: () =>
-      transcript &&
-      downloadText(hasTrans ? `${filename}_bilingual.srt` : `${filename}.srt`, toSrt(transcript.cues)),
-    exportOrig: () =>
-      transcript &&
-      downloadText(
-        `${filename}_${origBase || 'original'}.srt`,
-        toSrt(transcript.cues.map((c) => ({ ...c, trans: undefined }))),
-      ),
-    exportTxt: () => transcript && downloadText(`${filename}.txt`, toTxt(transcript.cues)),
     copyPrompt: async () => {
       if (!transcript) return;
       const prompt = buildPrompt({
@@ -277,13 +260,8 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         </nav>
         <Menu
           hasTranscript={!!transcript}
-          origName={hasTrans ? (LANG_NAMES[origBase] ?? '原文') : undefined}
-          transMachine={transcript?.transMachine}
           imported={!!data?.transcript}
           onImport={() => setImporting(true)}
-          onExportSrt={actions.exportSrt}
-          onExportOrig={actions.exportOrig}
-          onExportTxt={actions.exportTxt}
           onCopyPrompt={actions.copyPrompt}
           onRestoreSite={actions.restoreSite}
         />
@@ -389,10 +367,28 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   );
 }
 
-/** 当前视频的导入数据和笔记：切换视频时读取，修改后稍等片刻再保存（连续打字只存一次）。 */
+/**
+ * 当前视频的导入数据和笔记：切换视频时读取，修改后稍等片刻再保存（连续打字只存一次）。
+ * 离开页面或切换视频时，立刻保存还没存的修改，避免丢失。
+ */
 function useVideoData(videoKey: string | null) {
   const [data, setData] = useState<VideoData | null>(null);
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pending = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; data: VideoData }>());
+
+  const flush = useCallback((key?: string) => {
+    for (const [k, p] of pending.current) {
+      if (key && k !== key) continue;
+      clearTimeout(p.timer);
+      pending.current.delete(k);
+      saveVideoData(k, p.data);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onHide = () => flush();
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
+  }, [flush]);
 
   useEffect(() => {
     setData(null);
@@ -401,23 +397,24 @@ function useVideoData(videoKey: string | null) {
     loadVideoData(videoKey).then((d) => live && setData(d));
     return () => {
       live = false;
+      flush(videoKey);
     };
-  }, [videoKey]);
+  }, [videoKey, flush]);
 
   const updateData = useCallback(
     (fn: (d: VideoData) => VideoData) => {
       if (!videoKey) return;
       setData((prev) => {
         const next = fn(prev ?? { notes: [] });
-        clearTimeout(timers.current.get(videoKey));
-        timers.current.set(
-          videoKey,
-          setTimeout(() => saveVideoData(videoKey, next), 300),
-        );
+        clearTimeout(pending.current.get(videoKey)?.timer);
+        pending.current.set(videoKey, {
+          data: next,
+          timer: setTimeout(() => flush(videoKey), 300),
+        });
         return next;
       });
     },
-    [videoKey],
+    [videoKey, flush],
   );
 
   return { data, updateData };

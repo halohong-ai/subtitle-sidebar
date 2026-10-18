@@ -35,8 +35,6 @@ export interface Transcript {
   source: 'site' | 'import' | 'ai';
   lang: string;
   transLang?: string;
-  /** 译文是机器翻译（YouTube 机翻、B站 AI 字幕） */
-  transMachine?: boolean;
   /** 浮窗顶部显示的来源说明 */
   label: string;
   cues: Cue[];

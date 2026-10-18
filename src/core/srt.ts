@@ -1,5 +1,5 @@
 import { cleanText } from './text';
-import { formatClock, formatSrtTime, parseTimestamp } from './time';
+import { formatSrtTime, parseTimestamp } from './time';
 import type { Cue } from './types';
 
 const CJK = /[㐀-鿿豈-﫿]/g;
@@ -52,7 +52,7 @@ export function parseSrt(text: string): ParsedSrt {
   return { cues, origIsCjk, hasTrans: cues.some((c) => c.trans) };
 }
 
-/** 导出 SRT：每条先原文、后译文（与 skill 的双语 SRT 格式一致）。 */
+/** 生成 SRT：每条先原文、后译文（与 skill 的双语 SRT 格式一致）。用于 AI 提示词。 */
 export function toSrt(cues: Cue[]): string {
   return (
     cues
@@ -60,15 +60,6 @@ export function toSrt(cues: Cue[]): string {
         const lines = [c.text, c.trans].filter(Boolean).join('\n');
         return `${i + 1}\n${formatSrtTime(c.start)} --> ${formatSrtTime(c.end)}\n${lines}`;
       })
-      .join('\n\n') + '\n'
-  );
-}
-
-/** 导出纯文本：每句一段，带时间。 */
-export function toTxt(cues: Cue[]): string {
-  return (
-    cues
-      .map((c) => [`[${formatClock(c.start)}] ${c.text}`, c.trans].filter(Boolean).join('\n'))
       .join('\n\n') + '\n'
   );
 }

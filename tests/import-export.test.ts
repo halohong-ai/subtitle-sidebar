@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { importTexts, splitPasted } from '../src/core/importer';
 import { notesToMarkdown } from '../src/core/markdown';
 import { buildPrompt, hasChinese } from '../src/core/prompt';
-import { parseSrt, toSrt, toTxt } from '../src/core/srt';
+import { parseSrt, toSrt } from '../src/core/srt';
 import { FormatError, parseSummary } from '../src/core/summary';
 import { formatSrtTime, parseTimestamp } from '../src/core/time';
 import type { Note } from '../src/core/types';
@@ -68,15 +68,11 @@ describe('SRT', () => {
     expect(cues).toHaveLength(1);
   });
 
-  it('导出 SRT 后再解析，内容不变', () => {
+  it('生成 SRT 后再解析，内容不变', () => {
     const { cues } = parseSrt(BILINGUAL_SRT);
     expect(parseSrt(toSrt(cues)).cues).toEqual(cues);
   });
 
-  it('导出 TXT 带时间', () => {
-    const { cues } = parseSrt(BILINGUAL_SRT);
-    expect(toTxt(cues)).toContain('[0:00] What are we calling');
-  });
 });
 
 describe('摘要', () => {

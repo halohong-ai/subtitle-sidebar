@@ -338,23 +338,15 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('已有中文字幕：提示词只要摘要', clip.includes('不需要翻译') && !clip.includes('```srt') && clip.includes('-->'), `${clip.length} 字`);
   check('复制后给出下一步提示', !!(await inPanel((root) => root.querySelector('.toast')?.textContent.includes('导入'))));
 
-  const exportItems = await inPanel(async (root) => {
+  const menuItems = await inPanel(async (root) => {
     root.querySelector('.menu > .icon').click();
     await new Promise((r) => setTimeout(r, 100));
-    const labels = [...root.querySelectorAll('.menu-list button')].map((b) => b.textContent).filter((t) => t.startsWith('导出'));
+    const labels = [...root.querySelectorAll('.menu-list button')].map((b) => b.textContent);
     root.querySelector('.menu-backdrop').click();
     return labels;
   });
-  check('导出菜单先列自带字幕，再列双语', exportItems[0] === '导出英文字幕（SRT）' && exportItems[1] === '导出双语字幕（SRT）', exportItems.join(' | '));
+  check('菜单只有导入和复制提示词', menuItems.join(' | ') === '导入字幕 / 摘要… | 复制 AI 提示词', menuItems.join(' | '));
   await sleep(200);
-  await menu('导出双语字幕');
-  const srtFile = await lastDownloadText();
-  check('导出双语 SRT', srtFile.name.endsWith('_bilingual.srt') && /-->[^\n]*\n.*\n[^\n]*[\u4e00-\u9fff]/.test(srtFile.text), srtFile.name);
-  await menu('导出英文字幕');
-  const enFile = await lastDownloadText();
-  check('导出英文字幕（不含中文）', enFile.name.endsWith('_en.srt') && enFile.text.includes('-->') && !/[\u4e00-\u9fff]/.test(enFile.text), enFile.name);
-  await menu('导出文本');
-  check('导出 TXT', (await lastDownloadText()).text.includes('[0:00]'));
 
   // 粘贴 AI 回复导入
   await menu('导入');
@@ -426,6 +418,8 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await page.screenshot({ path: join(shotDir, 'e2e-13-notes-summary.png') });
 
   // 刷新后数据仍在
+  // 改完立刻刷新（不等保存的延迟），笔记也不能丢
+  await inPanel((root) => root.querySelector('.note textarea').dispatchEvent(new Event('input', { bubbles: true })));
   await page.reload();
   await waitPanel((root) => root.querySelector('.badge')?.textContent === '3');
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '摘要').click());
