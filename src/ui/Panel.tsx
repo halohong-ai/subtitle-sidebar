@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { ImportResult } from '../core/importer';
 import { notesToMarkdown } from '../core/markdown';
 import { mergeCues } from '../core/normalize';
-import { buildPrompt, fileTag, hasChinese, summaryFilename } from '../core/prompt';
+import { buildPrompt, fileTag } from '../core/prompt';
 import type { Cue, Note, SummaryItem, Transcript, VideoData } from '../core/types';
 import { NoCaptionsError, type SiteAdapter } from '../sites/types';
 import {
@@ -26,7 +26,6 @@ const MIN_WIDTH = 280;
 const MAX_WIDTH = 640;
 const MIN_FONT = 11;
 const MAX_FONT = 22;
-const LONG_PROMPT_CHARS = 100_000;
 
 type Status =
   | { kind: 'hidden' }
@@ -118,7 +117,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   // 提示条几秒后自动消失
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 6000);
+    const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -196,13 +195,9 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         tag,
       };
       const prompt = buildPrompt(input);
-      const files = hasChinese(input) ? '摘要文件' : '双语字幕和摘要文件';
       try {
         await copyText(prompt);
-        setToast(
-          `已复制。粘贴到 ChatGPT、DeepSeek、Kimi、Claude 等 AI，等它返回${files}（如 ${summaryFilename(tag)}）后，点 ⋯ → 导入此文件。` +
-            (prompt.length > LONG_PROMPT_CHARS ? ' 字幕较长，AI 可能要分几次回复。' : ''),
-        );
+        setToast('复制成功！请粘贴至AI会话窗口');
       } catch {
         setToast('复制失败，请再点一次');
       }
@@ -290,10 +285,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
 
       {toast && (
         <div class="toast" role="status">
-          <span>{toast}</span>
-          <button type="button" class="icon" aria-label="关闭提示" onClick={() => setToast(null)}>
-            ×
-          </button>
+          {toast}
         </div>
       )}
 

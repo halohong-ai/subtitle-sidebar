@@ -170,7 +170,7 @@ await inPanel((root) => [...root.querySelectorAll('.menu-list button')].find((b)
 await sleep(300);
 const clipAsr = await page.evaluate(() => window.__clipboard__);
 check('没有中文字幕：提示词要求生成中英双语 SRT + 摘要', clipAsr.includes('中英双语字幕') && clipAsr.includes('```srt') && clipAsr.includes('{"items"'), `${clipAsr.length} 字`);
-await inPanel((root) => root.querySelector('.toast .icon')?.click());
+await sleep(3200); // 等提示自动消失
 await page.screenshot({ path: join(shotDir, 'e2e-3-asr.png') });
 
 // ---------- 场景 3：无字幕 ----------
@@ -339,7 +339,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   const fileName = clip.match(/文件名必须是：(\d{12}\.json)/)?.[1];
   check('提示词指定规范的文件名', !!fileName, fileName);
   const toastText = await inPanel((root) => root.querySelector('.toast')?.textContent ?? '');
-  check('复制后提示：等 AI 返回摘要文件后导入', toastText.includes('返回摘要文件') && toastText.includes(fileName) && toastText.includes('导入此文件'), toastText);
+  check('复制后只显示简短提示', toastText === '复制成功！请粘贴至AI会话窗口', toastText);
 
   const menuItems = await inPanel(async (root) => {
     root.querySelector('.menu > .icon').click();
