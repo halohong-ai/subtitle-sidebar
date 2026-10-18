@@ -338,6 +338,15 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('已有中文字幕：提示词只要摘要', clip.includes('不需要翻译') && !clip.includes('```srt') && clip.includes('-->'), `${clip.length} 字`);
   check('复制后给出下一步提示', !!(await inPanel((root) => root.querySelector('.toast')?.textContent.includes('导入'))));
 
+  const exportItems = await inPanel(async (root) => {
+    root.querySelector('.menu > .icon').click();
+    await new Promise((r) => setTimeout(r, 100));
+    const labels = [...root.querySelectorAll('.menu-list button')].map((b) => b.textContent).filter((t) => t.startsWith('导出'));
+    root.querySelector('.menu-backdrop').click();
+    return labels;
+  });
+  check('导出菜单先列自带字幕，再列双语', exportItems[0] === '导出英文字幕（SRT）' && exportItems[1] === '导出双语字幕（SRT）', exportItems.join(' | '));
+  await sleep(200);
   await menu('导出双语字幕');
   const srtFile = await lastDownloadText();
   check('导出双语 SRT', srtFile.name.endsWith('_bilingual.srt') && /-->[^\n]*\n.*\n[^\n]*[\u4e00-\u9fff]/.test(srtFile.text), srtFile.name);
@@ -398,9 +407,27 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   const md = await lastDownloadText();
   check('导出 Markdown 含分组、时间戳链接和批注', md.name.endsWith('_notes.md') && md.text.includes('## 想法') && md.text.includes('## 好句') && md.text.includes('> 这是我的批注') && md.text.includes('&t='), md.name);
 
+  // 摘要也能收藏到笔记
+  await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '摘要').click());
+  await waitPanel((root) => root.querySelectorAll('.summary-item').length > 0);
+  const beforeSumStar = await page.$eval('video', (v) => v.currentTime);
+  await inPanel((root) => root.querySelectorAll('.summary-item .star')[1].click());
+  await sleep(200);
+  check('收藏摘要，笔记数变为 3，且不跳转视频', (await inPanel((root) => root.querySelector('.badge')?.textContent)) === '3' && Math.abs((await page.$eval('video', (v) => v.currentTime)) - beforeSumStar) < 1);
+  await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent.startsWith('笔记')).click());
+  await waitPanel((root) => root.querySelectorAll('.note').length === 3);
+  const sumNote = await inPanel((root) => {
+    const n = [...root.querySelectorAll('.note')].find((x) => x.querySelector('.chip.summary'));
+    return n?.querySelector('.note-title')?.textContent;
+  });
+  check('笔记里显示摘要话题标题', sumNote === summary.items[1].title, sumNote);
+  await inPanel((root) => root.querySelector('.notes-bar .primary').click());
+  check('导出的 Markdown 含摘要标题', (await lastDownloadText()).text.includes(`**${summary.items[1].title}**`));
+  await page.screenshot({ path: join(shotDir, 'e2e-13-notes-summary.png') });
+
   // 刷新后数据仍在
   await page.reload();
-  await waitPanel((root) => root.querySelector('.badge')?.textContent === '2');
+  await waitPanel((root) => root.querySelector('.badge')?.textContent === '3');
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '摘要').click());
   await waitPanel((root) => root.querySelectorAll('.summary-item').length > 0);
   check('刷新后导入的内容和笔记仍在', true);
@@ -416,7 +443,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await menu('恢复为网站字幕');
   await waitPanel((root) => root.querySelector('.source')?.textContent === 'English + Chinese (Simplified)');
   check('恢复为网站字幕', true);
-  check('不再有导图标签', (await inPanel((root) => [...root.querySelectorAll('.tabs button')].map((b) => b.textContent).join(','))) === '字幕,摘要,笔记2');
+  check('不再有导图标签', (await inPanel((root) => [...root.querySelectorAll('.tabs button')].map((b) => b.textContent).join(','))) === '字幕,摘要,笔记3');
 
 } else {
   console.log('SKIP  M3 场景（缺少 Terence Tao 的 skill 产物）');

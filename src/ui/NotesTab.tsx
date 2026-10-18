@@ -17,7 +17,7 @@ export function NotesTab({ notes, getVideo, onChange, onExport }: Props) {
     return (
       <div class="empty">
         <p>还没有笔记。</p>
-        <p>在「字幕」里，把鼠标移到句子上，点右侧的 ☆ 收藏。收藏的句子会出现在这里，可以写批注、导出 Markdown。</p>
+        <p>在「字幕」或「摘要」里，把鼠标移到句子或话题上，点右侧的 ☆ 收藏。收藏的内容会出现在这里，可以写批注、导出 Markdown。</p>
       </div>
     );
   }
@@ -49,6 +49,7 @@ export function NotesTab({ notes, getVideo, onChange, onExport }: Props) {
               >
                 {formatClock(n.start)}
               </button>
+              {n.source === 'summary' && <span class="chip summary">摘要</span>}
               <button
                 type="button"
                 class={`chip ${n.kind}`}
@@ -67,6 +68,7 @@ export function NotesTab({ notes, getVideo, onChange, onExport }: Props) {
                 ×
               </button>
             </div>
+            {n.title && <p class="note-title">{n.title}</p>}
             <p class="orig">{n.text}</p>
             {n.trans && <p class="trans">{n.trans}</p>}
             <textarea

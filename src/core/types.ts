@@ -35,6 +35,8 @@ export interface Transcript {
   source: 'site' | 'import' | 'ai';
   lang: string;
   transLang?: string;
+  /** 译文是机器翻译（YouTube 机翻、B站 AI 字幕） */
+  transMachine?: boolean;
   /** 浮窗顶部显示的来源说明 */
   label: string;
   cues: Cue[];
@@ -49,10 +51,18 @@ export interface SummaryItem {
 
 export type NoteKind = 'idea' | 'phrase';
 
-/** 笔记按句子的开始时间对应字幕（换了字幕来源也能对上），不依赖句子 id。 */
+/**
+ * 笔记：收藏的字幕句子或摘要话题。
+ * 按「来源 + 开始时间」对应原条目（换了字幕来源也能对上），不依赖 id。
+ */
 export interface Note {
   id: string;
+  /** 缺省为 cue（旧版本只有字幕笔记） */
+  source?: 'cue' | 'summary';
   start: number;
+  /** 摘要话题的标题 */
+  title?: string;
+  /** 字幕原文，或摘要内容 */
   text: string;
   trans?: string;
   kind: NoteKind;

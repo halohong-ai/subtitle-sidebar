@@ -723,6 +723,24 @@ mark {
   border-color: #2a9d8f;
 }
 
+.chip.summary {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.note-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.summary-item {
+  cursor: pointer;
+}
+
+.summary-item .star {
+  margin-left: auto;
+}
+
 .chip.phrase {
   color: #e76f51;
   border-color: #e76f51;

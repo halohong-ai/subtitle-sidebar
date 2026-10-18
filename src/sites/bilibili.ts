@@ -113,6 +113,7 @@ export const bilibili: SiteAdapter = {
       source: 'site',
       lang: plan.primary.lan.replace(/^ai-/, ''),
       transLang: usable ? plan.secondary!.lan.replace(/^ai-/, '') : undefined,
+      transMachine: !!usable && plan.secondary!.lan.startsWith('ai-'),
       label: usable ? `${plan.primary.lan_doc} + ${plan.secondary!.lan_doc}` : plan.primary.lan_doc,
       cues: buildCues(primary, false, usable ?? undefined),
     } satisfies Transcript;

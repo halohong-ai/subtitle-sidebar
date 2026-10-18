@@ -19,7 +19,8 @@ export function notesToMarkdown(
     if (!group.length) continue;
     out.push(`## ${name}`, '');
     for (const n of group) {
-      out.push(`- [${formatClock(n.start)}](${timeUrl(n.start)}) ${n.text}`);
+      const head = n.title ? `**${n.title}** ` : '';
+      out.push(`- [${formatClock(n.start)}](${timeUrl(n.start)}) ${head}${n.text}`);
       if (n.trans) out.push(`  ${n.trans}`);
       for (const line of n.comment.trim().split('\n').filter(Boolean)) out.push(`  > ${line}`);
     }

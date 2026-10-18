@@ -2,8 +2,10 @@ import { useState } from 'preact/hooks';
 
 interface Props {
   hasTranscript: boolean;
-  /** 有译文时显示「导出双语」和「导出原文」两项；这里是原文语言名，如「英文」 */
+  /** 有译文时先列「导出原文」（视频自带字幕），再列「导出双语」；这里是原文语言名，如「英文」 */
   origName?: string;
+  /** 译文是机翻 */
+  transMachine?: boolean;
   imported: boolean;
   onImport: () => void;
   onExportSrt: () => void;
@@ -48,24 +50,28 @@ export function Menu(props: Props) {
               复制 AI 提示词
             </button>
             <hr />
+            {props.origName && (
+              <button
+                type="button"
+                role="menuitem"
+                title="视频自带的字幕，不含译文。对机翻不满意时，可以拿去自己翻译"
+                onClick={run(props.onExportOrig)}
+              >
+                导出{props.origName}字幕（SRT）
+              </button>
+            )}
             <button
               type="button"
               role="menuitem"
               disabled={!props.hasTranscript}
               onClick={run(props.onExportSrt)}
             >
-              {props.origName ? '导出双语字幕（SRT）' : '导出字幕（SRT）'}
+              {!props.origName
+                ? '导出字幕（SRT）'
+                : props.transMachine
+                  ? '导出双语字幕（SRT，含机翻）'
+                  : '导出双语字幕（SRT）'}
             </button>
-            {props.origName && (
-              <button
-                type="button"
-                role="menuitem"
-                title="只含原文，不含译文。对机翻不满意时，可以拿去自己翻译"
-                onClick={run(props.onExportOrig)}
-              >
-                导出{props.origName}字幕（SRT）
-              </button>
-            )}
             <button
               type="button"
               role="menuitem"

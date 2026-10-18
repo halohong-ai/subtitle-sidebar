@@ -173,6 +173,16 @@ describe('提示词', () => {
   });
 });
 
+describe('笔记导出（摘要）', () => {
+  it('摘要笔记带加粗标题', () => {
+    const notes: Note[] = [
+      { id: 's', source: 'summary', start: 75000, title: '英雄时代的终结', text: '陶哲轩的观点。', kind: 'idea', comment: '', createdAt: 1 },
+    ];
+    const md = notesToMarkdown('t', 'u', notes, () => 'u');
+    expect(md).toContain('- [1:15](u) **英雄时代的终结** 陶哲轩的观点。');
+  });
+});
+
 describe('笔记导出', () => {
   it('按类型分组，带时间戳链接和批注', () => {
     const notes: Note[] = [

@@ -4,7 +4,7 @@ import { notesToMarkdown } from '../core/markdown';
 import { mergeCues } from '../core/normalize';
 import { buildPrompt } from '../core/prompt';
 import { toSrt, toTxt } from '../core/srt';
-import type { Cue, Note, Transcript, VideoData } from '../core/types';
+import type { Cue, Note, SummaryItem, Transcript, VideoData } from '../core/types';
 import { NoCaptionsError, type SiteAdapter } from '../sites/types';
 import {
   DEFAULT_SETTINGS,
@@ -134,19 +134,19 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   const transcript = data?.transcript ?? siteTranscript;
   const notes = data?.notes ?? [];
 
-  const onToggleNote = useCallback(
-    (cue: Cue) =>
+  /** 收藏 / 取消收藏一条字幕或摘要 */
+  const toggleNote = useCallback(
+    (source: 'cue' | 'summary', fields: Pick<Note, 'start' | 'text' | 'trans' | 'title'>) =>
       updateData((d) => {
-        const exists = d.notes.some((n) => n.start === cue.start);
-        const next: Note[] = exists
-          ? d.notes.filter((n) => n.start !== cue.start)
+        const same = (n: Note) => (n.source ?? 'cue') === source && n.start === fields.start;
+        const next: Note[] = d.notes.some(same)
+          ? d.notes.filter((n) => !same(n))
           : [
               ...d.notes,
               {
-                id: `n_${cue.start}_${Date.now().toString(36)}`,
-                start: cue.start,
-                text: cue.text,
-                trans: cue.trans,
+                id: `n_${source}_${fields.start}_${Date.now().toString(36)}`,
+                source,
+                ...fields,
                 kind: 'idea',
                 comment: '',
                 createdAt: Date.now(),
@@ -155,6 +155,15 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         return { ...d, notes: next };
       }),
     [updateData],
+  );
+  const onToggleNote = useCallback(
+    (cue: Cue) => toggleNote('cue', { start: cue.start, text: cue.text, trans: cue.trans }),
+    [toggleNote],
+  );
+  const onToggleSummaryNote = useCallback(
+    (item: SummaryItem) =>
+      toggleNote('summary', { start: item.start, title: item.title, text: item.summary }),
+    [toggleNote],
   );
 
   if (status.kind === 'hidden' || fullscreen || !videoKey) return null;
@@ -269,6 +278,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         <Menu
           hasTranscript={!!transcript}
           origName={hasTrans ? (LANG_NAMES[origBase] ?? '原文') : undefined}
+          transMachine={transcript?.transMachine}
           imported={!!data?.transcript}
           onImport={() => setImporting(true)}
           onExportSrt={actions.exportSrt}
@@ -334,7 +344,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
               mode={settings.langMode}
               fontSize={settings.fontSize}
               getVideo={getVideo}
-              notedStarts={new Set(notes.map((n) => n.start))}
+              notedStarts={startsOf(notes, 'cue')}
               onToggleNote={onToggleNote}
             />
           )}
@@ -342,7 +352,13 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
       )}
 
       {tab === 'summary' && (
-        <SummaryTab key={videoKey} items={data?.summary} getVideo={getVideo} />
+        <SummaryTab
+          key={videoKey}
+          items={data?.summary}
+          getVideo={getVideo}
+          notedStarts={startsOf(notes, 'summary')}
+          onToggleNote={onToggleSummaryNote}
+        />
       )}
 
       {tab === 'notes' && (
@@ -405,6 +421,10 @@ function useVideoData(videoKey: string | null) {
   );
 
   return { data, updateData };
+}
+
+function startsOf(notes: Note[], source: 'cue' | 'summary'): Set<number> {
+  return new Set(notes.filter((n) => (n.source ?? 'cue') === source).map((n) => n.start));
 }
 
 function clamp(n: number, min: number, max: number): number {

@@ -6,10 +6,13 @@ import { seek, watchPlayback } from '../content/sync';
 interface Props {
   items?: SummaryItem[];
   getVideo: () => HTMLVideoElement | null;
+  /** 已收藏到笔记的话题的开始时间 */
+  notedStarts: Set<number>;
+  onToggleNote: (item: SummaryItem) => void;
 }
 
-/** 按话题分段的摘要：当前话题高亮，点击跳到该话题开头。 */
-export function SummaryTab({ items, getVideo }: Props) {
+/** 按话题分段的摘要：当前话题高亮，点击跳到该话题开头，可收藏到笔记。 */
+export function SummaryTab({ items, getVideo, notedStarts, onToggleNote }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(-1);
   // 用户最近手动滚动过，就暂不自动滚动
@@ -47,24 +50,43 @@ export function SummaryTab({ items, getVideo }: Props) {
       onWheel={() => (userScrolledAt.current = Date.now())}
       onTouchMove={() => (userScrolledAt.current = Date.now())}
     >
-      {items.map((item, i) => (
-        <button
-          key={item.start}
-          type="button"
-          class={`summary-item${i === active ? ' active' : ''}`}
-          onClick={() => {
-            const video = getVideo();
-            if (video) seek(video, item.start);
-            userScrolledAt.current = 0;
-          }}
-        >
-          <span class="time">{formatClock(item.start)}</span>
-          <span class="summary-body">
-            <strong>{item.title}</strong>
-            {item.summary && <span>{item.summary}</span>}
-          </span>
-        </button>
-      ))}
+      {items.map((item, i) => {
+        const jump = () => {
+          const video = getVideo();
+          if (video) seek(video, item.start);
+          userScrolledAt.current = 0;
+        };
+        const noted = notedStarts.has(item.start);
+        return (
+          <div
+            key={item.start}
+            role="button"
+            tabIndex={0}
+            class={`summary-item row${i === active ? ' active' : ''}`}
+            onClick={jump}
+            onKeyDown={(e) => e.key === 'Enter' && jump()}
+          >
+            <span class="time">{formatClock(item.start)}</span>
+            <span class="summary-body">
+              <strong>{item.title}</strong>
+              {item.summary && <span>{item.summary}</span>}
+            </span>
+            <button
+              type="button"
+              class={`star${noted ? ' on' : ''}`}
+              title={noted ? '取消收藏' : '收藏到笔记'}
+              aria-label={noted ? '取消收藏' : '收藏到笔记'}
+              aria-pressed={noted}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleNote(item);
+              }}
+            >
+              {noted ? '★' : '☆'}
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
