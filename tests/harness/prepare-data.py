@@ -3,10 +3,11 @@
 
 需要：
   - yt-dlp、ffmpeg
-  - 一个中英双语 SRT（bilingual-srt-translator skill 的产物：英文行在前、中文行在后）
+  - 一到两个中英双语 SRT（bilingual-srt-translator skill 的产物：英文行在前、中文行在后）
 
 用法：
-  python3 tests/harness/prepare-data.py path/to/xxx_bilingual.srt
+  python3 tests/harness/prepare-data.py a_bilingual.srt [b_bilingual.srt]
+第一个 SRT 用作 YouTube 人工双语视频和 B站第 2P；第二个（缺省时同第一个）用作 B站第 1P。
 """
 
 import json
@@ -38,8 +39,30 @@ def srt_to_json3(srt_path: Path):
     return {'events': en}, {'events': zh}
 
 
+def json3_to_bili(track):
+    """json3 → B站字幕格式（秒）。"""
+    return {'body': [{'from': e['tStartMs'] / 1000, 'to': (e['tStartMs'] + e['dDurationMs']) / 1000,
+                      'content': e['segs'][0]['utf8']} for e in track['events']]}
+
+
+def bili_data(srt_a: Path, srt_b: Path):
+    en_a, zh_a = srt_to_json3(srt_a)
+    en_b, zh_b = srt_to_json3(srt_b)
+    duration = lambda t: int(max(e['tStartMs'] + e['dDurationMs'] for e in t['events']) / 1000) + 5
+    return {
+        'durations': {'p1': duration(en_b), 'p2': duration(en_a)},
+        'subs': {
+            'p1-en': json3_to_bili(en_b), 'p1-zh': json3_to_bili(zh_b),
+            'p2-en': json3_to_bili(en_a), 'p2-zh': json3_to_bili(zh_a),
+            # 「别的视频的字幕」：时长是正确字幕的 3 倍
+            'wrong': {'body': [{'from': i * 30, 'to': i * 30 + 3, 'content': f'别的视频 {i}'}
+                               for i in range(duration(en_b) // 10)]},
+        },
+    }
+
+
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
     DATA.mkdir(parents=True, exist_ok=True)
 
@@ -62,6 +85,11 @@ def main():
     }
     # file:// 页面不能 fetch，所以打包成 <script> 能加载的 JS
     (DATA / 'data.js').write_text('window.__CAPTIONS__ = ' + json.dumps(data, ensure_ascii=False) + ';', 'utf-8')
+
+    srt_a = Path(sys.argv[1])
+    srt_b = Path(sys.argv[2]) if len(sys.argv) == 3 else srt_a
+    (DATA / 'bili-data.js').write_text(
+        'window.__BILI__ = ' + json.dumps(bili_data(srt_a, srt_b), ensure_ascii=False) + ';', 'utf-8')
     print('done:', DATA)
 
 

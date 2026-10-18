@@ -187,6 +187,43 @@ header {
   border-color: var(--active-bar);
 }
 
+.player-controls {
+  display: flex;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-right: 4px;
+}
+
+.player-controls button {
+  border: none;
+  background: none;
+  width: 32px;
+  height: 30px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.player-controls button + button {
+  border-left: 1px solid var(--line);
+}
+
+.player-controls button:hover {
+  background: var(--hover);
+}
+
+.player-controls button.on {
+  background: var(--active-bar);
+  color: #fff;
+}
+
+.loop-mark {
+  display: block;
+  color: var(--active-bar);
+  font-size: 13px;
+}
+
 .search-count {
   color: var(--muted);
   font-size: 12px;

@@ -10,6 +10,7 @@ const CHROME =
   process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const shotDir = process.argv[2] ?? tmpdir();
 const base = pathToFileURL(resolve('tests/harness/harness.html')).href;
+const biliBase = pathToFileURL(resolve('tests/harness/harness-bili.html')).href;
 
 let failed = 0;
 function check(name, ok, detail = '') {
@@ -185,6 +186,96 @@ await page.evaluate(() => document.documentElement.setAttribute('dark', ''));
 await sleep(200);
 check('跟随深色模式', (await inPanel((root) => root.querySelector('.panel').dataset.theme)) === 'dark');
 await page.screenshot({ path: join(shotDir, 'e2e-5-dark.png') });
+
+await page.evaluate(() => document.documentElement.removeAttribute('dark'));
+
+// ---------- 场景 5：单句循环与快捷键 ----------
+const rowsInfo = () =>
+  inPanel((root) => ({
+    active: [...root.querySelectorAll('.row')].findIndex((r) => r.classList.contains('active')),
+    looping: [...root.querySelectorAll('.row')].findIndex((r) => r.classList.contains('looping')),
+  }));
+await page.evaluate(() => {
+  document.querySelector('video').currentTime = 120;
+});
+await sleep(500);
+const before = await rowsInfo();
+await page.keyboard.press(']');
+await sleep(400);
+const afterNext = await rowsInfo();
+check('快捷键 ] 跳到下一句', afterNext.active === before.active + 1, `${before.active} → ${afterNext.active}`);
+await page.keyboard.press('[');
+await sleep(400);
+check('快捷键 [ 回到上一句', (await rowsInfo()).active === before.active);
+
+// 开循环并播放，等它播过句尾，应该被拉回句首
+await page.keyboard.press('Backslash');
+await sleep(300);
+const loopRow = await inPanel((root) => {
+  const rows = [...root.querySelectorAll('.row')];
+  const i = rows.findIndex((r) => r.classList.contains('looping'));
+  return { i, pressed: root.querySelector('.player-controls button[aria-pressed]')?.getAttribute('aria-pressed') };
+});
+check('快捷键 \\ 打开单句循环并标记当前句', loopRow.i === before.active && loopRow.pressed === 'true', JSON.stringify(loopRow));
+const cueRange = await page.evaluate(async () => {
+  const v = document.querySelector('video');
+  await v.play();
+  return null;
+});
+const samples = [];
+for (let k = 0; k < 16; k++) {
+  await sleep(1000);
+  samples.push(await page.$eval('video', (v) => +v.currentTime.toFixed(1)));
+}
+const info = await rowsInfo();
+const wentBack = samples.some((t, k) => k > 0 && t < samples[k - 1]);
+check('循环中播放到句尾会跳回句首', wentBack && info.looping === before.active, samples.join(','));
+await page.$eval('video', (v) => v.pause());
+
+// 循环中点击另一句，循环目标跟着换
+const clicked = before.active + 5;
+await inPanel((root, [i]) => root.querySelectorAll('.row')[i].click(), clicked);
+await sleep(500);
+check('循环中点击另一句，改为循环那一句', (await rowsInfo()).looping === clicked);
+await page.keyboard.press('Backslash');
+await sleep(300);
+check('再按 \\ 关闭循环', (await rowsInfo()).looping === -1);
+await page.screenshot({ path: join(shotDir, 'e2e-6-loop.png') });
+
+// ---------- 场景 6：B站 ----------
+await page.goto(`${biliBase}?site=bili&bv=BV1TEST00001&p=1`);
+await waitPanel((root) => root.querySelectorAll('.row').length > 0);
+const b1 = await inPanel((root) => ({
+  rows: root.querySelectorAll('.row').length,
+  source: root.querySelector('.source')?.textContent,
+  first: [...root.querySelectorAll('.row')[0].querySelectorAll('p')].map((p) => p.textContent),
+  modes: [...root.querySelectorAll('.segmented button')].map((b) => b.textContent),
+}));
+check('B站：读到字幕', b1.rows > 100, `${b1.rows} 句`);
+check('B站：AI 英文为原文、AI 中文为译文', b1.source === '英语（自动生成） + 中文（自动翻译）', b1.source);
+check('B站：首句中英配对', b1.first.length === 2 && /[\u4e00-\u9fff]/.test(b1.first[1]), JSON.stringify(b1.first));
+check('B站：用的是拦截到的播放器数据，没有自己再请求', (await page.evaluate(() => window.__requests__.filter((u) => u.includes('player/wbi/v2')).length)) === 1);
+await page.screenshot({ path: join(shotDir, 'e2e-7-bili.png') });
+
+// 切分P
+await page.click('a[href*="p=2"]');
+await waitPanel((root) => root.querySelector('.row .orig')?.textContent.startsWith('What are we calling'));
+check('B站：切分P后换成该P的字幕', true);
+
+// 站内跳到另一个视频（页面状态已过期，需要查 view 接口）→ 未登录
+await page.click('a[href*="BV1LOGIN0001"]');
+await waitPanel((root) => root.querySelector('.state')?.textContent.includes('登录'));
+check('B站：未登录时提示登录', true);
+check('B站：页面状态过期时查 view 接口拿 cid', (await page.evaluate(() => window.__requests__.some((u) => u.includes('/x/web-interface/view?bvid=BV1LOGIN0001')))));
+
+// 接口返回了别的视频的字幕 → 校验不通过，重新请求后正确
+await page.goto(`${biliBase}?site=bili&bv=BV1WRONG0001`);
+await waitPanel((root) => root.querySelectorAll('.row').length > 0 || !!root.querySelector('.state p'));
+const b3 = await inPanel((root) => ({
+  first: root.querySelector('.row .orig')?.textContent,
+  error: root.querySelector('.state p')?.textContent,
+}));
+check('B站：识别出错的字幕并重新请求', !!b3.first && !b3.first.includes('别的视频'), b3.first ?? b3.error);
 
 await browser.close();
 console.log(failed ? `\n${failed} 项失败` : '\n全部通过');

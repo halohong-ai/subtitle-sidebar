@@ -1,0 +1,119 @@
+<!doctype html>
+<!--
+  本地模拟 B站视频页，用来端到端测试浮窗。先 npm run build，再打开：
+    harness-bili.html?site=bili&bv=BV1TEST00001&p=1   英文搬运访谈：AI 英文 + AI 中文（两个分P）
+    harness-bili.html?site=bili&bv=BV1LOGIN0001        未登录：字幕列表为空，need_login_subtitle
+    harness-bili.html?site=bili&bv=BV1WRONG0001        播放器拿到的是别的视频的字幕，重新请求后正确
+  模拟的关键行为：
+    - 播放器加载时请求 /x/player/wbi/v2（经过 main-world.js 的拦截层）
+    - 页面 __INITIAL_STATE__ 只描述首次打开的视频；站内跳到别的视频后会过期
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>模拟 B站</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #fff; }
+  #header { height: 64px; background: #fb7299; color: #fff; display: flex; align-items: center; gap: 16px; padding: 0 16px; }
+  #header a { color: #fff; }
+  .bpx-player-video-wrap { width: 720px; margin: 16px; }
+  video { width: 720px; background: #000; }
+</style>
+<script src="data/bili-data.js"></script>
+<script>
+  const D = window.__BILI__;
+  const SUB = (name) => `//aisubtitle.hdslb.com/bfs/ai_subtitle/prod/${name}.json`;
+  const VIDEOS = {
+    BV1TEST00001: [
+      { page: 1, cid: 1001, duration: D.durations.p1, part: '上集' },
+      { page: 2, cid: 1002, duration: D.durations.p2, part: '下集' },
+    ],
+    BV1LOGIN0001: [{ page: 1, cid: 2001, duration: 600, part: '' }],
+    BV1WRONG0001: [{ page: 1, cid: 3001, duration: D.durations.p1, part: '' }],
+  };
+  const subtitlesFor = (cid, fresh) => {
+    if (cid === 1001) return [
+      { lan: 'ai-zh', lan_doc: '中文（自动翻译）', ai_type: 1, subtitle_url: SUB('p1-zh') },
+      { lan: 'ai-en', lan_doc: '英语（自动生成）', ai_type: 0, subtitle_url: SUB('p1-en') },
+    ];
+    if (cid === 1002) return [
+      { lan: 'ai-en', lan_doc: '英语（自动生成）', ai_type: 0, subtitle_url: SUB('p2-en') },
+      { lan: 'ai-zh', lan_doc: '中文（自动翻译）', ai_type: 1, subtitle_url: SUB('p2-zh') },
+    ];
+    if (cid === 3001) return [
+      { lan: 'ai-en', lan_doc: '英语（自动生成）', ai_type: 0, subtitle_url: SUB(fresh ? 'p1-en' : 'wrong') },
+    ];
+    return [];
+  };
+
+  // 替身 fetch：必须在 main-world.js 之前定义
+  window.__requests__ = [];
+  window.fetch = async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input.url, 'https://www.bilibili.com');
+    const q = url.searchParams;
+    window.__requests__.push(url.pathname + url.search);
+    const json = (obj) => new Response(JSON.stringify(obj));
+    if (/\/x\/player\/(wbi\/)?v2$/.test(url.pathname)) {
+      const cid = Number(q.get('cid'));
+      return json({ code: 0, data: {
+        bvid: q.get('bvid'), cid,
+        need_login_subtitle: cid === 2001,
+        subtitle: { subtitles: subtitlesFor(cid, q.has('_')) },
+      } });
+    }
+    if (url.pathname === '/x/web-interface/view') {
+      return json({ code: 0, data: { pages: VIDEOS[q.get('bvid')] ?? [] } });
+    }
+    const m = url.pathname.match(/\/ai_subtitle\/prod\/(.+)\.json$/);
+    if (m) return json(D.subs[m[1]]);
+    return new Response('', { status: 404 });
+  };
+</script>
+<script src="../../dist/main-world.js"></script>
+<script>
+  // 页面初始状态只描述首次打开的视频
+  (() => {
+    const q = new URLSearchParams(location.search);
+    const bvid = q.get('bv');
+    const pages = VIDEOS[bvid] ?? [];
+    const p = Number(q.get('p')) || 1;
+    window.__INITIAL_STATE__ = { bvid, p, cid: pages[p - 1]?.cid, videoData: { pages } };
+  })();
+</script>
+</head>
+<body>
+<div id="header">
+  <strong>模拟 B站</strong>
+  <a href="?site=bili&bv=BV1TEST00001&p=1" data-nav>上集</a>
+  <a href="?site=bili&bv=BV1TEST00001&p=2" data-nav>下集（分P）</a>
+  <a href="?site=bili&bv=BV1LOGIN0001" data-nav>未登录</a>
+  <a href="?site=bili&bv=BV1WRONG0001" data-nav>错字幕</a>
+</div>
+<div class="bpx-player-video-wrap">
+  <video controls muted src="data/video.mp4"></video>
+</div>
+<script>
+  const currentPage = () => {
+    const q = new URLSearchParams(location.search);
+    return (VIDEOS[q.get('bv')] ?? [])[(Number(q.get('p')) || 1) - 1];
+  };
+  // 播放器加载当前分P时请求 player/v2（经过拦截层）
+  const loadPlayer = () => {
+    const q = new URLSearchParams(location.search);
+    const page = currentPage();
+    if (page) fetch(`https://api.bilibili.com/x/player/wbi/v2?bvid=${q.get('bv')}&cid=${page.cid}`);
+  };
+  loadPlayer();
+  // 站内跳转（不刷新页面）：切分P或换视频
+  document.querySelectorAll('[data-nav]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      history.pushState({}, '', a.getAttribute('href'));
+      document.querySelector('video').currentTime = 0;
+      loadPlayer();
+    }),
+  );
+</script>
+<script src="build/harness-content.js"></script>
+</body>
+</html>

@@ -100,6 +100,15 @@ describe('mergeSentences', () => {
     expect(s[1]).toMatchObject({ start: 2000, end: 6000 });
   });
 
+  it('每行一句、行尾不带句号的字幕（B站 AI 字幕常见）不合并', () => {
+    const frags = [
+      { start: 0, end: 1000, text: "Hello everyone, I'm Xiaojun" },
+      { start: 1000, end: 2000, text: "Today's guest is Professor Zeng." },
+      { start: 2000, end: 3000, text: 'He also helped found two schools' },
+    ];
+    expect(mergeSentences(frags, false)).toHaveLength(3);
+  });
+
   it('无标点的人工字幕保持原行', () => {
     const frags = [
       { start: 0, end: 1000, text: 'first line' },

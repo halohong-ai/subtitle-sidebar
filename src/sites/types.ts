@@ -7,6 +7,8 @@ export interface SiteAdapter {
   videoKey(): string | null;
   /** 页面上正在播放的 <video> 元素 */
   video(): HTMLVideoElement | null;
+  /** 网站当前是否为深色主题 */
+  isDark(): boolean;
   /** 站内跳转（换视频）时回调；返回取消订阅函数 */
   onNavigate(cb: () => void): () => void;
   /** 读取并整理当前视频的字幕 */
@@ -17,5 +19,12 @@ export class NoCaptionsError extends Error {
   constructor() {
     super('这个视频没有字幕');
     this.name = 'NoCaptionsError';
+  }
+}
+
+export class LoginRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LoginRequiredError';
   }
 }

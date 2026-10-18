@@ -25,7 +25,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   const [videoKey, setVideoKey] = useState<string | null>(() => adapter.videoKey());
   const [reloadTick, setReloadTick] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
-  const [dark, setDark] = useState(isYoutubeDark);
+  const [dark, setDark] = useState(() => adapter.isDark());
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -70,17 +70,19 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     return () => ctrl.abort();
   }, [adapter, videoKey, reloadTick]);
 
-  // 全屏时隐藏；跟随 YouTube 的深色模式
+  // 全屏时隐藏；跟随网站的深色模式
   useEffect(() => {
     const onFs = () => setFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFs);
-    const obs = new MutationObserver(() => setDark(isYoutubeDark()));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['dark'] });
+    const obs = new MutationObserver(() => setDark(adapter.isDark()));
+    const opts = { attributes: true, attributeFilter: ['dark', 'class', 'style'] };
+    obs.observe(document.documentElement, opts);
+    if (document.body) obs.observe(document.body, opts);
     return () => {
       document.removeEventListener('fullscreenchange', onFs);
       obs.disconnect();
     };
-  }, []);
+  }, [adapter]);
 
   const getVideo = useCallback(() => adapter.video(), [adapter]);
   const resize = useResize(settings.width, (w) => update({ width: w }));
@@ -165,10 +167,6 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
       )}
     </aside>
   );
-}
-
-function isYoutubeDark(): boolean {
-  return document.documentElement.hasAttribute('dark');
 }
 
 function clamp(n: number, min: number, max: number): number {

@@ -1,4 +1,5 @@
 import { render } from 'preact';
+import { bilibili } from '../sites/bilibili';
 import { youtube } from '../sites/youtube';
 import { Panel } from '../ui/Panel';
 import css from '../ui/styles.css';
@@ -16,7 +17,8 @@ function mount(): void {
   const root = document.createElement('div');
   shadow.append(style, root);
   document.documentElement.appendChild(host);
-  render(<Panel adapter={youtube} />, root);
+  const adapter = location.hostname.endsWith('bilibili.com') ? bilibili : youtube;
+  render(<Panel adapter={adapter} />, root);
 }
 
 mount();

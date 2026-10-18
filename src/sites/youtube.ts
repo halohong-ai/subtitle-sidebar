@@ -29,6 +29,10 @@ export const youtube: SiteAdapter = {
     return document.querySelector<HTMLVideoElement>('#movie_player video');
   },
 
+  isDark() {
+    return document.documentElement.hasAttribute('dark');
+  },
+
   onNavigate(cb) {
     // yt-navigate-finish 是 YouTube 站内跳转完成的事件；再加轮询兜底。
     let last = location.href;

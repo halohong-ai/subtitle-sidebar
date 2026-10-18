@@ -2,7 +2,7 @@ import { memo } from 'preact/compat';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { formatClock } from '../core/time';
 import type { Cue } from '../core/types';
-import { seek, watchPlayback } from '../content/sync';
+import { loopSentence, seek, watchPlayback } from '../content/sync';
 import type { LangMode } from '../storage';
 
 interface Props {
@@ -18,6 +18,10 @@ export function TranscriptTab({ cues, mode, fontSize, getVideo }: Props) {
   const [follow, setFollow] = useState(true);
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
+  const [looping, setLooping] = useState(false);
+  const [loopIdx, setLoopIdx] = useState(-1);
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   // 跟随播放进度
   useEffect(() => {
@@ -51,6 +55,44 @@ export function TranscriptTab({ cues, mode, fontSize, getVideo }: Props) {
     },
     [getVideo],
   );
+
+  // 单句循环
+  useEffect(() => {
+    const video = getVideo();
+    if (!looping || !video) {
+      setLoopIdx(-1);
+      return;
+    }
+    return loopSentence(video, cues, Math.max(activeRef.current, 0), setLoopIdx);
+  }, [looping, cues, getVideo]);
+
+  const step = useCallback(
+    (delta: number) => {
+      const i = Math.min(cues.length - 1, Math.max(0, activeRef.current + delta));
+      if (cues[i]) onSeek(cues[i]);
+    },
+    [cues, onSeek],
+  );
+
+  // 快捷键：[ 上一句，] 下一句，\ 开关单句循环。在输入框里打字时不响应。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const el = e.composedPath()[0] as HTMLElement | undefined;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      const action =
+        e.code === 'BracketLeft' ? () => step(-1)
+        : e.code === 'BracketRight' ? () => step(1)
+        : e.code === 'Backslash' ? () => setLooping((v) => !v)
+        : null;
+      if (!action) return;
+      e.preventDefault();
+      e.stopPropagation();
+      action();
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [step]);
 
   // 用户手动滚动字幕列表时，暂停自动跟随。
   const stopFollow = () => setFollow(false);
@@ -100,6 +142,24 @@ export function TranscriptTab({ cues, mode, fontSize, getVideo }: Props) {
   return (
     <div class="transcript" style={{ '--fs': `${fontSize}px` }}>
       <div class="search">
+        <div class="player-controls" role="group" aria-label="逐句控制">
+          <button type="button" title="上一句（[）" aria-label="上一句" onClick={() => step(-1)}>
+            ‹
+          </button>
+          <button
+            type="button"
+            class={looping ? 'on' : ''}
+            title={'单句循环（\\）'}
+            aria-label="单句循环"
+            aria-pressed={looping}
+            onClick={() => setLooping((v) => !v)}
+          >
+            ⟲
+          </button>
+          <button type="button" title="下一句（]）" aria-label="下一句" onClick={() => step(1)}>
+            ›
+          </button>
+        </div>
         <input
           type="search"
           placeholder="搜索字幕"
@@ -137,6 +197,7 @@ export function TranscriptTab({ cues, mode, fontSize, getVideo }: Props) {
             cue={cue}
             active={i === active}
             current={i === current}
+            looping={i === loopIdx}
             mode={mode}
             query={matchSet.has(i) ? q : ''}
             onSeek={onSeek}
@@ -157,18 +218,24 @@ interface RowProps {
   cue: Cue;
   active: boolean;
   current: boolean;
+  looping: boolean;
   mode: LangMode;
   query: string;
   onSeek: (cue: Cue) => void;
 }
 
-const Row = memo(function Row({ cue, active, current, mode, query, onSeek }: RowProps) {
+const Row = memo(function Row({ cue, active, current, looping, mode, query, onSeek }: RowProps) {
   const showOrig = mode !== 'trans' || !cue.trans;
   const showTrans = mode !== 'orig' && !!cue.trans;
-  const cls = ['row', active && 'active', current && 'current'].filter(Boolean).join(' ');
+  const cls = ['row', active && 'active', current && 'current', looping && 'looping']
+    .filter(Boolean)
+    .join(' ');
   return (
     <div class={cls} onClick={() => onSeek(cue)}>
-      <span class="time">{formatClock(cue.start)}</span>
+      <span class="time">
+        {formatClock(cue.start)}
+        {looping && <span class="loop-mark" title="正在循环这一句">⟲</span>}
+      </span>
       <div class="lines">
         {showOrig && <p class="orig">{highlight(cue.text, query)}</p>}
         {showTrans && <p class="trans">{highlight(cue.trans!, query)}</p>}

@@ -16,12 +16,24 @@ export interface PlayerInfo {
   captionTracks: CaptionTrackInfo[];
 }
 
+/** B站页面 window.__INITIAL_STATE__ 里我们关心的部分 */
+export interface BiliState {
+  bvid: string;
+  cid: number;
+  p: number;
+  pages: Array<{ cid: number; page: number; duration: number }>;
+}
+
 export interface Requests {
-  /** 读取当前播放器的视频信息和字幕轨道列表 */
+  /** YouTube：读取当前播放器的视频信息和字幕轨道列表 */
   playerInfo: { req: Record<string, never>; res: PlayerInfo | null };
   /** 取播放器为某个视频发出过的字幕请求地址（带 PO Token） */
   capturedUrl: { req: { videoId: string }; res: string | null };
-  /** 用页面原始的 fetch 请求一个地址，返回文本 */
+  /** B站：读取页面初始状态 */
+  biliState: { req: Record<string, never>; res: BiliState | null };
+  /** B站：取播放器为某个分P请求过的 player/v2 接口响应（含字幕列表） */
+  biliPlayer: { req: { cid: number }; res: unknown };
+  /** 用页面原始的 fetch 请求一个地址（带 cookie），返回文本 */
   fetchText: { req: { url: string }; res: string };
 }
 
@@ -44,7 +56,7 @@ export interface ResponseMessage<T extends RequestType = RequestType> {
   error?: string;
 }
 
-/** 主世界脚本捕获到新的字幕请求时主动通知。 */
+/** 主世界脚本捕获到新的字幕请求时主动通知。videoId 对 B站来说是 cid。 */
 export interface CapturedEvent {
   ns: typeof NS;
   dir: 'event';

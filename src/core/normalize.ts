@@ -58,14 +58,13 @@ export function dedupe(frags: Fragment[]): Fragment[] {
 
 /**
  * 把片段合并成句子。
- * - 带标点：按句末标点断句，超长时强制断开。
- * - 自动字幕且无标点：按停顿断句。
- * - 人工字幕但无标点：每行保持原样，不合并。
+ * - 自动字幕（逐词）：带标点的按句末标点断句；无标点的按停顿断句。
+ * - 人工 / 按行的字幕：见 mergeLines。
  */
 export function mergeSentences(input: Fragment[], asr: boolean): Fragment[] {
   const frags = dedupe(input);
   const punctuated = hasPunctuation(frags);
-  if (!asr && !punctuated) return frags;
+  if (!asr) return mergeLines(frags, punctuated);
 
   const out: Fragment[] = [];
   let cur: Fragment | null = null;
@@ -98,6 +97,36 @@ export function mergeSentences(input: Fragment[], asr: boolean): Fragment[] {
   }
   flush();
   return out;
+}
+
+/**
+ * 按行的字幕：只在「一句话被拆到下一行」时合并。
+ * - 无标点的轨道：每行保持原样（如 B站 AI 字幕，一行就是一句）。
+ * - 带标点的轨道：本行没有以句末标点结尾，且下一行是接续时才合并。
+ *   英文的接续 = 下一行小写开头；中文没有大小写，只看标点。
+ */
+function mergeLines(frags: Fragment[], punctuated: boolean): Fragment[] {
+  if (!punctuated) return frags;
+  const out: Fragment[] = [];
+  for (const f of frags) {
+    const prev = out[out.length - 1];
+    if (prev && continues(prev, f)) {
+      prev.text = joinText(prev.text, f.text);
+      prev.end = Math.max(prev.end, f.end);
+    } else {
+      out.push({ ...f });
+    }
+  }
+  return out;
+}
+
+function continues(prev: Fragment, next: Fragment): boolean {
+  if (SENTENCE_END.test(prev.text)) return false;
+  if (next.start - prev.end >= LONG_PAUSE_MS) return false;
+  if (next.end - prev.start > MAX_SENTENCE_MS) return false;
+  const { words, cjk } = size(prev.text);
+  if (words >= (cjk ? MAX_CJK_CHARS : MAX_WORDS)) return false;
+  return cjk || /^[a-z]/.test(next.text);
 }
 
 /**
