@@ -336,7 +336,10 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await menu('复制 AI 提示词');
   const clip = await page.evaluate(() => window.__clipboard__);
   check('已有中文字幕：提示词只要摘要', clip.includes('不需要翻译') && !clip.includes('```srt') && clip.includes('-->'), `${clip.length} 字`);
-  check('复制后给出下一步提示', !!(await inPanel((root) => root.querySelector('.toast')?.textContent.includes('导入'))));
+  const fileName = clip.match(/summary_MANUAL00001_\d{8}-\d{4}\.json/)?.[0];
+  check('提示词指定规范的文件名', !!fileName, fileName);
+  const toastText = await inPanel((root) => root.querySelector('.toast')?.textContent ?? '');
+  check('复制后提示：等 AI 返回摘要文件后导入', toastText.includes('返回摘要文件') && toastText.includes(fileName) && toastText.includes('导入此文件'), toastText);
 
   const menuItems = await inPanel(async (root) => {
     root.querySelector('.menu > .icon').click();
@@ -345,8 +348,38 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
     root.querySelector('.menu-backdrop').click();
     return labels;
   });
-  check('菜单只有导入和复制提示词', menuItems.join(' | ') === '导入字幕 / 摘要… | 复制 AI 提示词', menuItems.join(' | '));
+  check('菜单：复制提示词在上，导入在下', menuItems.join(' | ') === '复制 AI 提示词 | 导入字幕 / 摘要…', menuItems.join(' | '));
   await sleep(200);
+
+  // 别的视频的摘要文件被拦下
+  const { writeFileSync } = await import('node:fs');
+  const otherFile = join(tmpdir(), 'summary_OTHERVIDEO1_20261018-1730.json');
+  writeFileSync(otherFile, JSON.stringify(summary));
+  await menu('导入');
+  const otherInput = await page.evaluateHandle(() =>
+    [...document.documentElement.children].find((e) => e.shadowRoot).shadowRoot.querySelector('.dialog input[type=file]'),
+  );
+  await otherInput.uploadFile(otherFile);
+  await sleep(200);
+  await inPanel((root) => root.querySelector('.dialog .primary').click());
+  await waitPanel((root) => root.querySelectorAll('.dialog .messages li').length > 0);
+  const otherMsg = await inPanel((root) => root.querySelector('.dialog .messages')?.textContent);
+  check('导入别的视频的文件会被拦下', otherMsg.includes('另一个视频'), otherMsg);
+  await inPanel((root) => [...root.querySelectorAll('.dialog-actions button')].find((b) => b.textContent === '关闭').click());
+  await waitPanel((root) => !root.querySelector('.dialog'));
+
+  // 当前视频的摘要文件（按提示词里的文件名）直接导入
+  const ownFile = join(tmpdir(), fileName);
+  writeFileSync(ownFile, JSON.stringify(summary));
+  await menu('导入');
+  const ownInput = await page.evaluateHandle(() =>
+    [...document.documentElement.children].find((e) => e.shadowRoot).shadowRoot.querySelector('.dialog input[type=file]'),
+  );
+  await ownInput.uploadFile(ownFile);
+  await sleep(200);
+  await inPanel((root) => root.querySelector('.dialog .primary').click());
+  await waitPanel((root) => !root.querySelector('.dialog'));
+  check('导入当前视频的摘要文件', (await inPanel((root) => root.querySelectorAll('.summary-item').length)) === summary.items.length);
 
   // 粘贴 AI 回复导入
   await menu('导入');

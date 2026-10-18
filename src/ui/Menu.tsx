@@ -31,9 +31,6 @@ export function Menu(props: Props) {
         <>
           <div class="menu-backdrop" onClick={() => setOpen(false)} />
           <div class="menu-list" role="menu">
-            <button type="button" role="menuitem" onClick={run(props.onImport)}>
-              导入字幕 / 摘要…
-            </button>
             <button
               type="button"
               role="menuitem"
@@ -41,6 +38,9 @@ export function Menu(props: Props) {
               onClick={run(props.onCopyPrompt)}
             >
               复制 AI 提示词
+            </button>
+            <button type="button" role="menuitem" onClick={run(props.onImport)}>
+              导入字幕 / 摘要…
             </button>
             {props.imported && (
               <>

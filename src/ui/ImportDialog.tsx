@@ -1,16 +1,19 @@
 import { useRef, useState } from 'preact/hooks';
 import { importTexts, splitPasted, type ImportResult } from '../core/importer';
+import { videoIdFromFilename } from '../core/prompt';
 import { readFile } from './files';
 
 interface Props {
+  /** 当前视频在文件名里的 ID，用来拦下别的视频的文件 */
+  videoId: string;
   durationMs: number;
   /** 应用导入结果，返回给用户看的结果说明 */
   onApply: (result: ImportResult) => string;
   onClose: () => void;
 }
 
-/** 导入：选文件（SRT / 摘要 JSON），或直接粘贴 AI 的整段回复。 */
-export function ImportDialog({ durationMs, onApply, onClose }: Props) {
+/** 导入：选 AI 返回的文件（摘要 JSON / 双语 SRT），或粘贴 AI 的回复。 */
+export function ImportDialog({ videoId, durationMs, onApply, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pasted, setPasted] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -20,15 +23,22 @@ export function ImportDialog({ durationMs, onApply, onClose }: Props) {
   const submit = async () => {
     setBusy(true);
     try {
-      const chunks = await Promise.all(files.map(readFile));
+      const skipped: string[] = [];
+      const ours = files.filter((f) => {
+        const id = videoIdFromFilename(f.name);
+        if (id && id !== videoId) skipped.push(`「${f.name}」是另一个视频的文件，已跳过`);
+        return !id || id === videoId;
+      });
+      const chunks = await Promise.all(ours.map(readFile));
       if (pasted.trim()) chunks.push(...splitPasted(pasted));
       const result = importTexts(chunks, durationMs);
-      const done = onApply(result);
-      if (done && result.errors.length === 0) {
+      const done = chunks.length ? onApply(result) : '';
+      const problems = [...skipped, ...result.errors];
+      if (done && problems.length === 0) {
         onClose();
         return;
       }
-      setMessages([done || '没有识别到可导入的内容', ...result.errors]);
+      setMessages([done || '没有导入任何内容', ...problems]);
     } catch (e) {
       setMessages([`读取失败：${String(e)}`]);
     } finally {
@@ -40,15 +50,7 @@ export function ImportDialog({ durationMs, onApply, onClose }: Props) {
     <div class="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div class="dialog" role="dialog" aria-label="导入">
         <h3>导入</h3>
-        <p class="hint">
-          把 AI 的整段回复粘贴到下面，会自动识别其中的双语字幕和摘要；也可以选择文件（.srt、summary.json）。
-        </p>
-        <textarea
-          rows={7}
-          placeholder="在这里粘贴 AI 的回复…"
-          value={pasted}
-          onInput={(e) => setPasted(e.currentTarget.value)}
-        />
+        <p class="hint">选择 AI 返回的摘要文件（summary_….json），没有中文字幕时还有双语字幕文件（bilingual_….srt）。</p>
         <div class="file-row">
           <button type="button" onClick={() => fileRef.current?.click()}>
             选择文件…
@@ -65,6 +67,13 @@ export function ImportDialog({ durationMs, onApply, onClose }: Props) {
             onChange={(e) => setFiles(Array.from(e.currentTarget.files ?? []))}
           />
         </div>
+        <p class="hint paste-hint">如果 AI 没有生成文件，而是直接回复了文字，把回复粘贴到这里：</p>
+        <textarea
+          rows={5}
+          placeholder="粘贴 AI 的回复…"
+          value={pasted}
+          onInput={(e) => setPasted(e.currentTarget.value)}
+        />
         {messages.length > 0 && (
           <ul class="messages">
             {messages.map((m) => (

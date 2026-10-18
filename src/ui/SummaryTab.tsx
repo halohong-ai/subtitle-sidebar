@@ -35,10 +35,8 @@ export function SummaryTab({ items, getVideo, notedStarts, onToggleNote }: Props
     return (
       <div class="empty">
         <p>还没有摘要。</p>
-        <p>
-          点右上角 ⋯ →「复制 AI 提示词」，粘贴到任意 AI；等它回复后，点 ⋯ →「导入」，把回复粘贴进去。
-          也可以导入 bilingual-srt-translator 生成的 summary.json。
-        </p>
+        <p>点右上角 ⋯ →「复制 AI 提示词」，粘贴到任意 AI。</p>
+        <p>AI 返回摘要文件后，再点右上角 ⋯ →「导入」，导入此摘要文件。</p>
       </div>
     );
   }

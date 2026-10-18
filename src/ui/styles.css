@@ -588,6 +588,10 @@ mark {
   white-space: nowrap;
 }
 
+.paste-hint {
+  margin-top: 14px;
+}
+
 .messages {
   margin: 10px 0 0;
   padding-left: 18px;

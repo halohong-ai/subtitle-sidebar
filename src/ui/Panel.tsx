@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { ImportResult } from '../core/importer';
 import { notesToMarkdown } from '../core/markdown';
 import { mergeCues } from '../core/normalize';
-import { buildPrompt } from '../core/prompt';
+import { buildPrompt, fileTag, hasChinese, summaryFilename, videoIdOf } from '../core/prompt';
 import type { Cue, Note, SummaryItem, Transcript, VideoData } from '../core/types';
 import { NoCaptionsError, type SiteAdapter } from '../sites/types';
 import {
@@ -184,18 +184,22 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   const actions = {
     copyPrompt: async () => {
       if (!transcript) return;
-      const prompt = buildPrompt({
+      const tag = fileTag(videoIdOf(videoKey));
+      const input = {
         title: adapter.title(),
         url: adapter.timeUrl(videoKey, 0),
         cues: transcript.cues,
         lang: transcript.lang,
         transLang: transcript.transLang,
-      });
+        tag,
+      };
+      const prompt = buildPrompt(input);
+      const files = hasChinese(input) ? '摘要文件' : '双语字幕和摘要文件';
       try {
         await copyText(prompt);
         setToast(
-          '已复制。粘贴到 ChatGPT、DeepSeek、Kimi、Claude 等 AI，等它回复完，把整段回复复制下来，点 ⋯ → 导入 → 粘贴。' +
-            (prompt.length > LONG_PROMPT_CHARS ? ' 字幕较长，AI 可能要分几次回复，全部复制后一起粘贴即可。' : ''),
+          `已复制。粘贴到 ChatGPT、DeepSeek、Kimi、Claude 等 AI，等它返回${files}（如 ${summaryFilename(tag)}）后，点 ⋯ → 导入此文件。` +
+            (prompt.length > LONG_PROMPT_CHARS ? ' 字幕较长，AI 可能要分几次回复。' : ''),
         );
       } catch {
         setToast('复制失败，请再点一次');
@@ -358,6 +362,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
 
       {importing && (
         <ImportDialog
+          videoId={videoIdOf(videoKey)}
           durationMs={(getVideo()?.duration || 0) * 1000}
           onApply={applyImport}
           onClose={() => setImporting(false)}
