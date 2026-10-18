@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseJson3 } from '../src/core/json3';
-import { buildCues, joinText, lastAtOrBefore, mergeCues, mergeSentences } from '../src/core/normalize';
+import { applyChineseCues, buildCues, joinText, lastAtOrBefore, mergeCues, mergeSentences } from '../src/core/normalize';
 import { cleanText } from '../src/core/text';
 import { formatClock, parseClock } from '../src/core/time';
 
@@ -167,6 +167,34 @@ describe('mergeCues', () => {
       { id: 1, start: 0, end: 4000, text: 'What are we calling this big event that happened in October?', trans: '我们该怎么称呼这件大事——十月初发生的那件事？' },
       { id: 2, start: 4000, end: 5000, text: 'Nobody knows.', trans: '没人知道。' },
     ]);
+  });
+});
+
+describe('applyChineseCues', () => {
+  const current = [
+    { id: 1, start: 0, end: 2000, text: 'Hello there.', trans: '机翻一' },
+    { id: 2, start: 2000, end: 4000, text: 'How are you?', trans: '机翻二' },
+    { id: 3, start: 4000, end: 6000, text: 'Fine.' },
+  ];
+
+  it('原文不是中文：中文替换机翻译文，组成双语', () => {
+    const zh = [
+      { id: 1, start: 0, end: 2000, text: '你好。' },
+      { id: 2, start: 2000, end: 4000, text: '你好吗？' },
+    ];
+    expect(applyChineseCues(current, zh, false).map((c) => c.trans)).toEqual(['你好。', '你好吗？', undefined]);
+    expect(applyChineseCues(current, zh, false)[0].text).toBe('Hello there.');
+  });
+
+  it('时间轴略有偏差时按时间重叠对应', () => {
+    const zh = [{ id: 1, start: 2100, end: 3900, text: '你好吗？' }];
+    expect(applyChineseCues(current, zh, false)[1].trans).toBe('你好吗？');
+  });
+
+  it('原文是中文：替换原文，保留译文', () => {
+    const zhCurrent = [{ id: 1, start: 0, end: 2000, text: '大家号', trans: 'Hello' }];
+    const fixed = [{ id: 1, start: 0, end: 2000, text: '大家好' }];
+    expect(applyChineseCues(zhCurrent, fixed, true)[0]).toEqual({ id: 1, start: 0, end: 2000, text: '大家好', trans: 'Hello' });
   });
 });
 

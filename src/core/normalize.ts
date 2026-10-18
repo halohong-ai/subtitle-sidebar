@@ -198,3 +198,20 @@ export function buildCues(
     ...(trans ? { trans: trans[i] } : {}),
   }));
 }
+
+/**
+ * 把导入的「只有中文」的字幕合到现有字幕上（「摘要+中字校准」的结果）：
+ * - 原文不是中文：中文作为译文，与原文组成双语
+ * - 原文是中文：中文是校对后的原文，替换原文，保留现有译文
+ * 先按开始时间精确对应（提示词给的就是这些时间轴），对不上的再按时间重叠归位。
+ * 某句没有对应的中文时保留原样。
+ */
+export function applyChineseCues(current: Cue[], chinese: Cue[], origIsZh: boolean): Cue[] {
+  const exact = new Map(chinese.map((c) => [c.start, c.text]));
+  const byTime = pairTranslation(current, chinese);
+  return current.map((cue, i) => {
+    const zh = exact.get(cue.start) ?? byTime[i];
+    if (!zh) return cue;
+    return origIsZh ? { ...cue, text: zh } : { ...cue, trans: zh };
+  });
+}

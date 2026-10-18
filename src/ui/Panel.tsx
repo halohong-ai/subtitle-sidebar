@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { ImportResult } from '../core/importer';
 import { notesToMarkdown } from '../core/markdown';
-import { mergeCues } from '../core/normalize';
-import { buildPrompt, fileTag } from '../core/prompt';
+import { applyChineseCues, mergeCues } from '../core/normalize';
+import { buildPrompt, fileTag, type PromptMode } from '../core/prompt';
 import type { Cue, Note, SummaryItem, Transcript, VideoData } from '../core/types';
 import { NoCaptionsError, type SiteAdapter } from '../sites/types';
 import {
@@ -41,6 +41,10 @@ const TABS: Array<[Tab, string]> = [
   ['summary', '摘要'],
   ['notes', '笔记'],
 ];
+
+const LANG_NAMES: Record<string, string> = {
+  en: '英文', ja: '日文', ko: '韩文', fr: '法文', de: '德文', es: '西班牙文', ru: '俄文', ar: '阿拉伯文',
+};
 
 const cache = new Map<string, Transcript>();
 
@@ -182,19 +186,18 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   const filename = safeFilename(adapter.title());
 
   const actions = {
-    copyPrompt: async () => {
+    copyPrompt: async (mode: PromptMode) => {
       if (!transcript) return;
       const tag = fileTag();
       rememberPromptTag(tag, videoKey);
-      const input = {
+      const prompt = buildPrompt({
         title: adapter.title(),
         url: adapter.timeUrl(videoKey, 0),
         cues: transcript.cues,
         lang: transcript.lang,
-        transLang: transcript.transLang,
         tag,
-      };
-      const prompt = buildPrompt(input);
+        mode,
+      });
       try {
         await copyText(prompt);
         setToast('复制成功！请粘贴至AI会话窗口');
@@ -210,9 +213,22 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
 
   const applyImport = (result: ImportResult): string => {
     const parts: string[] = [];
+    // 只有中文的字幕（「摘要+中字校准」的结果）：合到现有字幕上
+    const chineseOnly = !!result.srt?.origIsCjk && !result.srt.hasTrans && !!transcript;
     updateData((d) => {
       const next = { ...d };
-      if (result.srt) {
+      if (result.srt && chineseOnly) {
+        const base = transcript!;
+        const origIsZh = base.lang.toLowerCase().startsWith('zh');
+        next.transcript = {
+          ...base,
+          videoKey,
+          source: 'import',
+          transLang: origIsZh ? base.transLang : 'zh',
+          label: origIsZh ? '中文（AI 校对）' : `${LANG_NAMES[base.lang.split('-')[0]] ?? '原文'} + 中文（AI 校准）`,
+          cues: applyChineseCues(base.cues, result.srt.cues, origIsZh),
+        };
+      } else if (result.srt) {
         const zh = result.srt.origIsCjk;
         next.transcript = {
           videoKey,
@@ -226,7 +242,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
       if (result.summary) next.summary = result.summary;
       return next;
     });
-    if (result.srt) parts.push(`字幕 ${result.srt.cues.length} 句`);
+    if (result.srt) parts.push(`${chineseOnly ? '中文字幕' : '字幕'} ${result.srt.cues.length} 句`);
     if (result.summary) parts.push(`摘要 ${result.summary.length} 项`);
     if (result.summary) setTab('summary');
     else if (result.srt) setTab('transcript');
@@ -263,7 +279,8 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
           hasTranscript={!!transcript}
           imported={!!data?.transcript}
           onImport={() => setImporting(true)}
-          onCopyPrompt={actions.copyPrompt}
+          onCopySummary={() => actions.copyPrompt('summary')}
+          onCopyCalibrate={() => actions.copyPrompt('calibrate')}
           onRestoreSite={actions.restoreSite}
         />
         <button

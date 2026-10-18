@@ -26,13 +26,27 @@ function zhRank(lang: string): number {
 }
 
 /**
+ * 视频说话的语言：以自动字幕的语言为准。开了 AI 配音（多音轨）的视频会有多条
+ * 自动字幕（如原声英文 + 阿拉伯语配音），按英文、中文、其他的顺序取；
+ * 没有自动字幕时，按英文、中文、第一条的顺序取。
+ */
+function spokenLanguage(tracks: CaptionTrackInfo[]): string {
+  const asr = tracks.filter(isAsr);
+  const pool = asr.length ? asr : tracks;
+  const pick = pool.find((t) => base(t.languageCode) === 'en') ??
+    pool.find((t) => base(t.languageCode) === 'zh') ??
+    pool[0];
+  return pick.languageCode;
+}
+
+/**
  * 选原文轨道和译文轨道：
- * - 原文 = 视频说话的语言（以自动字幕的语言为准），人工字幕优先。
+ * - 原文 = 视频说话的语言（见 spokenLanguage），人工字幕优先。
  * - 译文 = 原文是中文时取英文，否则取中文；没有人工译文轨道就用 YouTube 机翻。
  */
 export function chooseTracks(tracks: CaptionTrackInfo[]): TrackPlan | null {
   if (tracks.length === 0) return null;
-  const spoken = (tracks.find(isAsr) ?? tracks[0]).languageCode;
+  const spoken = spokenLanguage(tracks);
   const sameLang = tracks.filter((t) => base(t.languageCode) === base(spoken));
   const primaryTrack =
     sameLang.find((t) => !isAsr(t) && t.languageCode === spoken) ??

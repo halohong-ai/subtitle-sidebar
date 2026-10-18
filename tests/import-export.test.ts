@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { importTexts, splitPasted } from '../src/core/importer';
 import { notesToMarkdown } from '../src/core/markdown';
-import { buildPrompt, fileTag, hasChinese, tagFromFilename } from '../src/core/prompt';
+import { buildPrompt, fileTag, tagFromFilename } from '../src/core/prompt';
 import { parseSrt, toSrt } from '../src/core/srt';
 import { FormatError, parseSummary } from '../src/core/summary';
 import { formatSrtTime, parseTimestamp } from '../src/core/time';
@@ -135,41 +135,34 @@ describe('导入识别', () => {
 });
 
 describe('提示词', () => {
-  const { cues } = parseSrt(BILINGUAL_SRT);
-  const englishOnly = cues.map((c) => ({ ...c, trans: undefined }));
+  const { cues } = parseSrt(BILINGUAL_SRT); // 英文原文 + 机翻中文
+  const base = { title: '陶哲轩访谈', url: 'https://x', cues, lang: 'en', tag: '202610181730' };
 
-  it('没有中文：生成中英双语 SRT + 摘要，只给原文', () => {
-    const p = buildPrompt({ title: '陶哲轩访谈', url: 'https://x', cues: englishOnly, lang: 'en', tag: '202610181730' });
-    expect(p).toContain('中英双语字幕');
-    expect(p).toContain('```srt');
-    expect(p).toContain('{"items"');
-    expect(p).toContain('00:00:00,160 --> 00:00:02,480\nWhat are we calling this big event that');
-    expect(p).toContain('202610181730.srt');
-    expect(p).toContain('202610181730.json');
-  });
-
-  it('已有中文译文：只生成摘要，不翻译', () => {
-    const p = buildPrompt({ title: 't', url: 'u', cues, lang: 'en', transLang: 'zh-Hans', tag: '202610181730' });
-    expect(p).toContain('不需要翻译');
-    expect(p).not.toContain('```srt');
-    expect(p).toContain('{"items"');
-    expect(p).toContain('我们该怎么称呼这件大事');
+  it('仅生成摘要：只给原文，不给机翻中文，只要摘要文件', () => {
+    const p = buildPrompt({ ...base, mode: 'summary' });
+    expect(p).toContain('只依据字幕原文');
     expect(p).toContain('文件名必须是：202610181730.json');
+    expect(p).toContain('00:00:00,160 --> 00:00:02,480\nWhat are we calling this big event that');
+    expect(p).not.toContain('我们该怎么称呼');
+    expect(p).not.toContain('```srt');
     expect(p).not.toContain('.srt');
   });
 
-  it('原文是中文：只生成摘要', () => {
-    const zh = parseSrt('1\n00:00:01,000 --> 00:00:02,000\n大家好\n').cues;
-    const p = buildPrompt({ title: 't', url: 'u', cues: zh, lang: 'zh-CN', tag: '202610181730' });
-    expect(p).toContain('不需要翻译');
-    expect(p).not.toContain('```srt');
+  it('摘要+中字校准：要求只含中文的 SRT 和摘要，同样不给机翻', () => {
+    const p = buildPrompt({ ...base, mode: 'calibrate' });
+    expect(p).toContain('输出只含中文译文的 SRT');
+    expect(p).toContain('中文字幕：202610181730.srt');
+    expect(p).toContain('摘要：202610181730.json');
+    expect(p).toContain('```srt');
+    expect(p).toContain('只依据字幕原文');
+    expect(p).not.toContain('我们该怎么称呼');
   });
 
-  it('判断是否已有中文', () => {
-    expect(hasChinese({ cues, lang: 'en', transLang: 'zh' })).toBe(true);
-    expect(hasChinese({ cues: englishOnly, lang: 'en', transLang: 'zh' })).toBe(false);
-    expect(hasChinese({ cues: englishOnly, lang: 'ai-zh'.replace('ai-', '') })).toBe(true);
-    expect(hasChinese({ cues: englishOnly, lang: 'ja' })).toBe(false);
+  it('原文是中文时，中字校准变为校对原文', () => {
+    const zh = parseSrt('1\n00:00:01,000 --> 00:00:02,000\n大家号\n').cues;
+    const p = buildPrompt({ ...base, cues: zh, lang: 'zh-CN', mode: 'calibrate' });
+    expect(p).toContain('校对中文字幕');
+    expect(p).toContain('大家号');
   });
 });
 

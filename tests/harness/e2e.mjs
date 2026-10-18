@@ -166,10 +166,10 @@ await page.evaluate(() => {
   };
 });
 await inPanel((root) => root.querySelector('.menu > .icon').click());
-await inPanel((root) => [...root.querySelectorAll('.menu-list button')].find((b) => b.textContent.includes('复制 AI 提示词')).click());
+await inPanel((root) => [...root.querySelectorAll('.menu-list button')].find((b) => b.textContent.includes('摘要+中字校准')).click());
 await sleep(300);
 const clipAsr = await page.evaluate(() => window.__clipboard__);
-check('没有中文字幕：提示词要求生成中英双语 SRT + 摘要', clipAsr.includes('中英双语字幕') && clipAsr.includes('```srt') && clipAsr.includes('{"items"'), `${clipAsr.length} 字`);
+check('摘要+中字校准：要求中文 SRT + 摘要', clipAsr.includes('输出只含中文译文的 SRT') && clipAsr.includes('```srt') && clipAsr.includes('{"items"'), `${clipAsr.length} 字`);
 await sleep(3200); // 等提示自动消失
 await page.screenshot({ path: join(shotDir, 'e2e-3-asr.png') });
 
@@ -333,9 +333,9 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
     await sleep(300);
   };
 
-  await menu('复制 AI 提示词');
+  await menu('仅生成摘要');
   const clip = await page.evaluate(() => window.__clipboard__);
-  check('已有中文字幕：提示词只要摘要', clip.includes('不需要翻译') && !clip.includes('```srt') && clip.includes('-->'), `${clip.length} 字`);
+  check('仅生成摘要：只给原文、不给机翻中文', clip.includes('只依据字幕原文') && !clip.includes('```srt') && clip.includes('-->') && !clip.includes('我们该怎么称呼'), `${clip.length} 字`);
   const fileName = clip.match(/文件名必须是：(\d{12}\.json)/)?.[1];
   check('提示词指定规范的文件名', !!fileName, fileName);
   const toastText = await inPanel((root) => root.querySelector('.toast')?.textContent ?? '');
@@ -348,7 +348,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
     root.querySelector('.menu-backdrop').click();
     return labels;
   });
-  check('菜单：复制提示词在上，导入在下', menuItems.join(' | ') === '复制 AI 提示词 | 导入字幕 / 摘要…', menuItems.join(' | '));
+  check('菜单三项依次为：仅摘要、摘要+中字校准、导入', menuItems.join(' | ') === '复制AI提示词：仅生成摘要 | 复制AI提示词：摘要+中字校准 | 导入摘要/字幕', menuItems.join(' | '));
   await sleep(200);
 
   // 为别的视频生成的文件被拦下（模拟：另一个视频复制过提示词，得到 200001010000）
@@ -356,7 +356,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await page.evaluate(() => localStorage.setItem('subtitle-sidebar:tag:200001010000', JSON.stringify(['yt:OTHERVIDEO1'])));
   const otherFile = join(tmpdir(), '200001010000.json');
   writeFileSync(otherFile, JSON.stringify(summary));
-  await menu('导入');
+  await menu('导入摘要');
   const otherInput = await page.evaluateHandle(() =>
     [...document.documentElement.children].find((e) => e.shadowRoot).shadowRoot.querySelector('.dialog input[type=file]'),
   );
@@ -372,7 +372,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   // 当前视频的摘要文件（按提示词里的文件名）直接导入
   const ownFile = join(tmpdir(), fileName);
   writeFileSync(ownFile, JSON.stringify(summary));
-  await menu('导入');
+  await menu('导入摘要');
   const ownInput = await page.evaluateHandle(() =>
     [...document.documentElement.children].find((e) => e.shadowRoot).shadowRoot.querySelector('.dialog input[type=file]'),
   );
@@ -383,7 +383,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('导入当前视频的摘要文件', (await inPanel((root) => root.querySelectorAll('.summary-item').length)) === summary.items.length);
 
   // 粘贴 AI 回复导入
-  await menu('导入');
+  await menu('导入摘要');
   await inPanel((root, [text]) => {
     const ta = root.querySelector('.dialog textarea');
     ta.value = text;
@@ -460,8 +460,12 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await waitPanel((root) => root.querySelectorAll('.summary-item').length > 0);
   check('刷新后导入的内容和笔记仍在', true);
 
-  // 恢复网站字幕
+  // 恢复网站字幕（刷新后重新装上下载和剪贴板的替身）
   await page.evaluate(() => {
+    window.__clipboard__ = '';
+    navigator.clipboard.writeText = async (t) => {
+      window.__clipboard__ = t;
+    };
     window.__downloads__ = [];
     HTMLAnchorElement.prototype.click = function () {
       window.__downloads__.push({ name: this.download, href: this.href });
@@ -471,6 +475,36 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await menu('恢复为网站字幕');
   await waitPanel((root) => root.querySelector('.source')?.textContent === 'English + Chinese (Simplified)');
   check('恢复为网站字幕', true);
+
+  // 摘要+中字校准：AI 返回只含中文的 SRT，导入后与英文原文合成双语
+  await menu('摘要+中字校准');
+  const calib = await page.evaluate(() => window.__clipboard__);
+  const srtName = calib.match(/中文字幕：(\d{12}\.srt)/)?.[1];
+  const origSrt = calib.slice(calib.indexOf('## 原文字幕') + '## 原文字幕'.length).trim();
+  let n = 0;
+  const zhSrt = origSrt
+    .split(/\n\s*\n/)
+    .map((block) => {
+      const lines = block.split('\n');
+      return [lines[0], lines[1], `中文第${++n}句`].join('\n');
+    })
+    .join('\n\n');
+  const zhFile = join(tmpdir(), srtName);
+  writeFileSync(zhFile, zhSrt);
+  await menu('导入摘要');
+  const zhInput = await page.evaluateHandle(() =>
+    [...document.documentElement.children].find((e) => e.shadowRoot).shadowRoot.querySelector('.dialog input[type=file]'),
+  );
+  await zhInput.uploadFile(zhFile);
+  await sleep(200);
+  await inPanel((root) => root.querySelector('.dialog .primary').click());
+  await waitPanel((root) => !root.querySelector('.dialog'));
+  await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '字幕').click());
+  await waitPanel((root) => root.querySelector('.source')?.textContent === '英文 + 中文（AI 校准）');
+  const calibRows = await inPanel((root) =>
+    [...root.querySelectorAll('.row')].slice(0, 2).map((r) => [...r.querySelectorAll('p')].map((p) => p.textContent)),
+  );
+  check('导入中文字幕后与英文原文合成双语', calibRows[0][0].startsWith('What are we calling') && calibRows[0][1] === '中文第1句' && calibRows[1][1] === '中文第2句', JSON.stringify(calibRows));
   check('不再有导图标签', (await inPanel((root) => [...root.querySelectorAll('.tabs button')].map((b) => b.textContent).join(','))) === '字幕,摘要,笔记3');
 
 } else {

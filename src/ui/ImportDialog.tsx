@@ -56,7 +56,7 @@ export function ImportDialog({ videoKey, durationMs, onApply, onClose }: Props) 
     <div class="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div class="dialog" role="dialog" aria-label="导入">
         <h3>导入</h3>
-        <p class="hint">选择 AI 返回的摘要文件（….json）。</p>
+        <p class="hint">选择 AI 返回的摘要文件（….json）；用了「中字校准」时，再选中文字幕文件（….srt）。</p>
         <div class="file-row">
           <button type="button" onClick={() => fileRef.current?.click()}>
             选择文件…

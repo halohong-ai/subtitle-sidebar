@@ -4,7 +4,8 @@ interface Props {
   hasTranscript: boolean;
   imported: boolean;
   onImport: () => void;
-  onCopyPrompt: () => void;
+  onCopySummary: () => void;
+  onCopyCalibrate: () => void;
   onRestoreSite: () => void;
 }
 
@@ -35,12 +36,21 @@ export function Menu(props: Props) {
               type="button"
               role="menuitem"
               disabled={!props.hasTranscript}
-              onClick={run(props.onCopyPrompt)}
+              onClick={run(props.onCopySummary)}
             >
-              复制 AI 提示词
+              复制AI提示词：仅生成摘要
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!props.hasTranscript}
+              title="摘要依据原文生成；AI 同时重新翻译中文字幕，导入后与原文合成双语"
+              onClick={run(props.onCopyCalibrate)}
+            >
+              复制AI提示词：摘要+中字校准
             </button>
             <button type="button" role="menuitem" onClick={run(props.onImport)}>
-              导入字幕 / 摘要…
+              导入摘要/字幕
             </button>
             {props.imported && (
               <>

@@ -35,6 +35,17 @@ describe('chooseTracks', () => {
     expect(plan.secondary?.tlang).toBe('en');
   });
 
+  it('多音轨视频：有英文自动字幕时不选排在前面的阿拉伯语配音字幕', () => {
+    const plan = chooseTracks([t('ar', 'asr'), t('en', 'asr')])!;
+    expect(plan.primary.track.languageCode).toBe('en');
+    expect(plan.secondary?.tlang).toBe('zh-Hans');
+  });
+
+  it('只有阿拉伯语自动字幕、另有人工英文字幕：视为阿拉伯语原声，英文是翻译', () => {
+    const plan = chooseTracks([t('ar', 'asr'), t('en')])!;
+    expect(plan.primary.track.languageCode).toBe('ar');
+  });
+
   it('没有轨道返回 null', () => {
     expect(chooseTracks([])).toBeNull();
   });
