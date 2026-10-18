@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { ImportResult } from '../core/importer';
 import { notesToMarkdown } from '../core/markdown';
 import { mergeCues } from '../core/normalize';
-import { buildPrompt, fileTag, hasChinese, summaryFilename, videoIdOf } from '../core/prompt';
+import { buildPrompt, fileTag, hasChinese, summaryFilename } from '../core/prompt';
 import type { Cue, Note, SummaryItem, Transcript, VideoData } from '../core/types';
 import { NoCaptionsError, type SiteAdapter } from '../sites/types';
 import {
   DEFAULT_SETTINGS,
   loadSettings,
   loadVideoData,
+  rememberPromptTag,
   saveSettings,
   saveVideoData,
   type Settings,
@@ -184,7 +185,8 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   const actions = {
     copyPrompt: async () => {
       if (!transcript) return;
-      const tag = fileTag(videoIdOf(videoKey));
+      const tag = fileTag();
+      rememberPromptTag(tag, videoKey);
       const input = {
         title: adapter.title(),
         url: adapter.timeUrl(videoKey, 0),
@@ -362,7 +364,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
 
       {importing && (
         <ImportDialog
-          videoId={videoIdOf(videoKey)}
+          videoKey={videoKey}
           durationMs={(getVideo()?.duration || 0) * 1000}
           onApply={applyImport}
           onClose={() => setImporting(false)}

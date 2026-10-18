@@ -56,3 +56,14 @@ export async function loadVideoData(videoKey: string): Promise<VideoData> {
 export function saveVideoData(videoKey: string, data: VideoData): Promise<void> {
   return setItem(`video:${videoKey}`, data);
 }
+
+/** 记下某个文件名（日期时间）是为哪个视频生成的。同一分钟可能复制过多个视频，所以存列表。 */
+export async function rememberPromptTag(tag: string, videoKey: string): Promise<void> {
+  const keys = (await getItem<string[]>(`tag:${tag}`)) ?? [];
+  if (!keys.includes(videoKey)) await setItem(`tag:${tag}`, [...keys, videoKey]);
+}
+
+/** 这个文件名是为哪些视频生成的；没记录时为空数组。 */
+export async function videoKeysForTag(tag: string): Promise<string[]> {
+  return (await getItem<string[]>(`tag:${tag}`)) ?? [];
+}

@@ -336,7 +336,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await menu('复制 AI 提示词');
   const clip = await page.evaluate(() => window.__clipboard__);
   check('已有中文字幕：提示词只要摘要', clip.includes('不需要翻译') && !clip.includes('```srt') && clip.includes('-->'), `${clip.length} 字`);
-  const fileName = clip.match(/summary_MANUAL00001_\d{8}-\d{4}\.json/)?.[0];
+  const fileName = clip.match(/文件名必须是：(\d{12}\.json)/)?.[1];
   check('提示词指定规范的文件名', !!fileName, fileName);
   const toastText = await inPanel((root) => root.querySelector('.toast')?.textContent ?? '');
   check('复制后提示：等 AI 返回摘要文件后导入', toastText.includes('返回摘要文件') && toastText.includes(fileName) && toastText.includes('导入此文件'), toastText);
@@ -351,9 +351,10 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('菜单：复制提示词在上，导入在下', menuItems.join(' | ') === '复制 AI 提示词 | 导入字幕 / 摘要…', menuItems.join(' | '));
   await sleep(200);
 
-  // 别的视频的摘要文件被拦下
+  // 为别的视频生成的文件被拦下（模拟：另一个视频复制过提示词，得到 200001010000）
   const { writeFileSync } = await import('node:fs');
-  const otherFile = join(tmpdir(), 'summary_OTHERVIDEO1_20261018-1730.json');
+  await page.evaluate(() => localStorage.setItem('subtitle-sidebar:tag:200001010000', JSON.stringify(['yt:OTHERVIDEO1'])));
+  const otherFile = join(tmpdir(), '200001010000.json');
   writeFileSync(otherFile, JSON.stringify(summary));
   await menu('导入');
   const otherInput = await page.evaluateHandle(() =>

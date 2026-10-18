@@ -1,7 +1,7 @@
 // 「复制 AI 提示词」：把字幕和生成规则拼成一段话，用户粘贴到任意 AI 工具。
 // - 已有中文字幕：只生成摘要 JSON
 // - 没有中文字幕：生成中英双语 SRT + 摘要 JSON
-// 让 AI 按固定文件名返回文件（视频 ID + 日期时间），导入时能据此认出是哪个视频的；
+// 让 AI 按固定文件名（复制时的日期时间）返回文件；扩展记下每个文件名对应的视频，导入时据此拦下别的视频的文件；
 // AI 不能生成文件时退回代码块，也能粘贴导入。规则与 bilingual-srt-translator skill 一致。
 
 import { toSrt } from './srt';
@@ -19,25 +19,18 @@ export interface PromptInput {
   tag: string;
 }
 
-/** 文件名标识：视频 ID + 复制提示词时的本地日期时间，如 ifniRXf467I_20261018-1730。 */
-export function fileTag(videoId: string, now = new Date()): string {
+/** 文件名：复制提示词时的本地日期时间直接连写，如 202610182322（年月日时分）。 */
+export function fileTag(now = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');
-  const date = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}`;
-  return `${videoId}_${date}-${p(now.getHours())}${p(now.getMinutes())}`;
+  return `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}${p(now.getHours())}${p(now.getMinutes())}`;
 }
 
-export const summaryFilename = (tag: string) => `summary_${tag}.json`;
-export const srtFilename = (tag: string) => `bilingual_${tag}.srt`;
+export const summaryFilename = (tag: string) => `${tag}.json`;
+export const srtFilename = (tag: string) => `${tag}.srt`;
 
-/** 文件名里用的视频 ID：YouTube 为视频 ID，B站为「BV号-p分P」。 */
-export function videoIdOf(videoKey: string): string {
-  const [site, id, p] = videoKey.split(':');
-  return site === 'bili' ? `${id}-p${p || 1}` : id;
-}
-
-/** 从文件名里取出视频 ID；不是本扩展约定的文件名时返回 null。 */
-export function videoIdFromFilename(name: string): string | null {
-  return name.match(/^(?:summary|bilingual)_(.+)_\d{8}-\d{4}(?:\s*\(\d+\))?\.(?:json|srt)$/)?.[1] ?? null;
+/** 从文件名里取出日期时间；不是本扩展约定的文件名时返回 null（含浏览器加的重名序号）。 */
+export function tagFromFilename(name: string): string | null {
+  return name.match(/^(\d{12})(?:\s*\(\d+\))?\.(?:json|srt)$/)?.[1] ?? null;
 }
 
 const isZh = (lang?: string) => !!lang && lang.toLowerCase().startsWith('zh');

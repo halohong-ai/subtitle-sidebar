@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { importTexts, splitPasted } from '../src/core/importer';
 import { notesToMarkdown } from '../src/core/markdown';
-import { buildPrompt, fileTag, hasChinese, videoIdFromFilename, videoIdOf } from '../src/core/prompt';
+import { buildPrompt, fileTag, hasChinese, tagFromFilename } from '../src/core/prompt';
 import { parseSrt, toSrt } from '../src/core/srt';
 import { FormatError, parseSummary } from '../src/core/summary';
 import { formatSrtTime, parseTimestamp } from '../src/core/time';
@@ -139,28 +139,28 @@ describe('提示词', () => {
   const englishOnly = cues.map((c) => ({ ...c, trans: undefined }));
 
   it('没有中文：生成中英双语 SRT + 摘要，只给原文', () => {
-    const p = buildPrompt({ title: '陶哲轩访谈', url: 'https://x', cues: englishOnly, lang: 'en', tag: 'abc_20261018-1730' });
+    const p = buildPrompt({ title: '陶哲轩访谈', url: 'https://x', cues: englishOnly, lang: 'en', tag: '202610181730' });
     expect(p).toContain('中英双语字幕');
     expect(p).toContain('```srt');
     expect(p).toContain('{"items"');
     expect(p).toContain('00:00:00,160 --> 00:00:02,480\nWhat are we calling this big event that');
-    expect(p).toContain('bilingual_abc_20261018-1730.srt');
-    expect(p).toContain('summary_abc_20261018-1730.json');
+    expect(p).toContain('202610181730.srt');
+    expect(p).toContain('202610181730.json');
   });
 
   it('已有中文译文：只生成摘要，不翻译', () => {
-    const p = buildPrompt({ title: 't', url: 'u', cues, lang: 'en', transLang: 'zh-Hans', tag: 'abc_20261018-1730' });
+    const p = buildPrompt({ title: 't', url: 'u', cues, lang: 'en', transLang: 'zh-Hans', tag: '202610181730' });
     expect(p).toContain('不需要翻译');
     expect(p).not.toContain('```srt');
     expect(p).toContain('{"items"');
     expect(p).toContain('我们该怎么称呼这件大事');
-    expect(p).toContain('文件名必须是：summary_abc_20261018-1730.json');
-    expect(p).not.toContain('bilingual_');
+    expect(p).toContain('文件名必须是：202610181730.json');
+    expect(p).not.toContain('.srt');
   });
 
   it('原文是中文：只生成摘要', () => {
     const zh = parseSrt('1\n00:00:01,000 --> 00:00:02,000\n大家好\n').cues;
-    const p = buildPrompt({ title: 't', url: 'u', cues: zh, lang: 'zh-CN', tag: 'abc_20261018-1730' });
+    const p = buildPrompt({ title: 't', url: 'u', cues: zh, lang: 'zh-CN', tag: '202610181730' });
     expect(p).toContain('不需要翻译');
     expect(p).not.toContain('```srt');
   });
@@ -174,20 +174,15 @@ describe('提示词', () => {
 });
 
 describe('文件命名', () => {
-  it('视频 ID + 日期时间', () => {
-    expect(fileTag('ifniRXf467I', new Date(2026, 9, 8, 7, 5))).toBe('ifniRXf467I_20261008-0705');
+  it('日期时间直接连写', () => {
+    expect(fileTag(new Date(2026, 9, 8, 7, 5))).toBe('202610080705');
   });
 
-  it('B站视频 ID 带分P', () => {
-    expect(videoIdOf('yt:ifniRXf467I')).toBe('ifniRXf467I');
-    expect(videoIdOf('bili:BV1bSbG6bEks:2')).toBe('BV1bSbG6bEks-p2');
-  });
-
-  it('从文件名取回视频 ID（含浏览器加的重名序号）', () => {
-    expect(videoIdFromFilename('summary_ifniRXf467I_20261008-0705.json')).toBe('ifniRXf467I');
-    expect(videoIdFromFilename('bilingual_BV1bSbG6bEks-p2_20261008-0705.srt')).toBe('BV1bSbG6bEks-p2');
-    expect(videoIdFromFilename('summary_a_b_c_20261008-0705 (1).json')).toBe('a_b_c');
-    expect(videoIdFromFilename('Terence_Tao_summary.json')).toBeNull();
+  it('从文件名取回日期时间（含浏览器加的重名序号）', () => {
+    expect(tagFromFilename('202610080705.json')).toBe('202610080705');
+    expect(tagFromFilename('202610080705 (1).json')).toBe('202610080705');
+    expect(tagFromFilename('202610080705.srt')).toBe('202610080705');
+    expect(tagFromFilename('Terence_Tao_summary.json')).toBeNull();
   });
 });
 

@@ -1,11 +1,12 @@
 import { useRef, useState } from 'preact/hooks';
 import { importTexts, splitPasted, type ImportResult } from '../core/importer';
-import { videoIdFromFilename } from '../core/prompt';
+import { tagFromFilename } from '../core/prompt';
+import { videoKeysForTag } from '../storage';
 import { readFile } from './files';
 
 interface Props {
-  /** 当前视频在文件名里的 ID，用来拦下别的视频的文件 */
-  videoId: string;
+  /** 当前视频，用来拦下为别的视频生成的文件 */
+  videoKey: string;
   durationMs: number;
   /** 应用导入结果，返回给用户看的结果说明 */
   onApply: (result: ImportResult) => string;
@@ -13,7 +14,7 @@ interface Props {
 }
 
 /** 导入：选 AI 返回的文件（摘要 JSON / 双语 SRT），或粘贴 AI 的回复。 */
-export function ImportDialog({ videoId, durationMs, onApply, onClose }: Props) {
+export function ImportDialog({ videoKey, durationMs, onApply, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pasted, setPasted] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -24,11 +25,16 @@ export function ImportDialog({ videoId, durationMs, onApply, onClose }: Props) {
     setBusy(true);
     try {
       const skipped: string[] = [];
-      const ours = files.filter((f) => {
-        const id = videoIdFromFilename(f.name);
-        if (id && id !== videoId) skipped.push(`「${f.name}」是另一个视频的文件，已跳过`);
-        return !id || id === videoId;
-      });
+      const ours: File[] = [];
+      for (const f of files) {
+        const tag = tagFromFilename(f.name);
+        const owners = tag ? await videoKeysForTag(tag) : [];
+        if (owners.length && !owners.includes(videoKey)) {
+          skipped.push(`「${f.name}」是为另一个视频生成的文件，已跳过`);
+        } else {
+          ours.push(f);
+        }
+      }
       const chunks = await Promise.all(ours.map(readFile));
       if (pasted.trim()) chunks.push(...splitPasted(pasted));
       const result = importTexts(chunks, durationMs);
@@ -50,7 +56,7 @@ export function ImportDialog({ videoId, durationMs, onApply, onClose }: Props) {
     <div class="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div class="dialog" role="dialog" aria-label="导入">
         <h3>导入</h3>
-        <p class="hint">选择 AI 返回的摘要文件（summary_….json），没有中文字幕时还有双语字幕文件（bilingual_….srt）。</p>
+        <p class="hint">选择 AI 返回的摘要文件（….json）。</p>
         <div class="file-row">
           <button type="button" onClick={() => fileRef.current?.click()}>
             选择文件…
