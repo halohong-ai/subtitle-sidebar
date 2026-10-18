@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "字幕侧栏 Subtitle Sidebar",
+  "version": "0.1.0",
+  "description": "在 YouTube 视频右侧显示可滚动、可点击跳转、可搜索的双语字幕浮窗。",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

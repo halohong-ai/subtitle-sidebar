@@ -1,0 +1,107 @@
+<!doctype html>
+<!--
+  本地模拟 YouTube，用来端到端测试浮窗（不需要翻墙，也不需要安装扩展）。
+  先 npm run build，再用浏览器直接打开本文件：
+    harness.html?v=MANUAL00001   人工英文 + 人工中文（Terence Tao 访谈）
+    harness.html?v=ASR00000001   英文自动字幕（Dario Amodei 访谈，5 小时真实数据）
+    harness.html?v=NOCAPTION01   没有字幕
+  模拟的关键行为：
+    - 轨道 baseUrl 不带 PO Token，直接请求返回空内容（与真实 YouTube 一致）
+    - 点击 CC 时，模拟播放器发出带 pot 参数的字幕请求
+    - 机翻（tlang）返回 429，模拟真实环境的限流
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>模拟 YouTube</title>
+<style>
+  body { font-family: sans-serif; margin: 0; }
+  #masthead { height: 56px; background: #c00; color: #fff; display: flex; align-items: center; gap: 16px; padding: 0 16px; }
+  #masthead a { color: #fff; }
+  #movie_player { width: 720px; margin: 16px; }
+  video { width: 720px; background: #000; }
+  #log { margin: 16px; font: 12px monospace; white-space: pre-wrap; color: #555; }
+</style>
+<script src="data/data.js"></script>
+<script>
+  // 替身 fetch：模拟 YouTube 的 /api/timedtext。必须在 main-world.js 之前定义，
+  // 因为 main-world.js 会保存「原始」fetch 并在其外面包一层拦截。
+  window.__requests__ = [];
+  window.fetch = async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input.url, 'https://www.youtube.com');
+    const q = url.searchParams;
+    const rec = { lang: q.get('lang'), tlang: q.get('tlang'), pot: q.has('pot') };
+    window.__requests__.push(rec);
+    if (url.pathname !== '/api/timedtext') return new Response('', { status: 404 });
+    if (!q.has('pot')) return new Response('', { status: 200 });
+    if (q.get('tlang')) return new Response('Too Many Requests', { status: 429 });
+    const data = window.__CAPTIONS__[q.get('v')]?.[q.get('lang')];
+    return data ? new Response(JSON.stringify(data)) : new Response('', { status: 404 });
+  };
+</script>
+<script src="../../dist/main-world.js"></script>
+</head>
+<body>
+<div id="masthead">
+  <strong>模拟 YouTube</strong>
+  <a href="?v=ASR00000001" data-nav>自动字幕</a>
+  <a href="?v=MANUAL00001" data-nav>人工双语</a>
+  <a href="?v=NOCAPTION01" data-nav>无字幕</a>
+  <a href="?" data-nav>首页</a>
+</div>
+<div id="movie_player">
+  <video controls muted src="data/video.mp4"></video><br>
+  <button class="ytp-subtitles-button" aria-pressed="false">CC</button>
+  <span id="title"></span>
+</div>
+<script>
+  const VIDEOS = {
+    ASR00000001: { title: 'Dario Amodei 访谈（自动字幕）', tracks: [{ lang: 'en', kind: 'asr', name: 'English (auto-generated)' }] },
+    MANUAL00001: { title: 'Terence Tao 访谈（人工中英字幕）', tracks: [{ lang: 'en', name: 'English' }, { lang: 'zh-Hans', name: 'Chinese (Simplified)' }] },
+    NOCAPTION01: { title: '没有字幕的视频', tracks: [] },
+  };
+  const player = document.getElementById('movie_player');
+  const cc = player.querySelector('.ytp-subtitles-button');
+  const currentId = () => new URLSearchParams(location.search).get('v');
+
+  player.getPlayerResponse = () => {
+    const id = currentId();
+    const v = VIDEOS[id];
+    if (!v) return undefined;
+    const captionTracks = v.tracks.map((t) => ({
+      baseUrl: `/api/timedtext?v=${id}&lang=${t.lang}&signature=sig&expire=1${t.kind ? '&kind=' + t.kind : ''}`,
+      languageCode: t.lang,
+      kind: t.kind,
+      name: { simpleText: t.name },
+    }));
+    return {
+      videoDetails: { videoId: id, lengthSeconds: '18900' },
+      ...(captionTracks.length ? { captions: { playerCaptionsTracklistRenderer: { captionTracks } } } : {}),
+    };
+  };
+
+  // 打开字幕时，播放器发出带 PO Token 的请求（经过 main-world.js 的拦截层）
+  cc.addEventListener('click', () => {
+    const on = cc.getAttribute('aria-pressed') !== 'true';
+    cc.setAttribute('aria-pressed', String(on));
+    const t = player.getPlayerResponse()?.captions?.playerCaptionsTracklistRenderer.captionTracks[0];
+    if (on && t) fetch(t.baseUrl + '&pot=FAKE_PO_TOKEN&c=WEB&fmt=json3');
+  });
+
+  // 模拟站内跳转（不刷新页面）
+  const showTitle = () => (document.getElementById('title').textContent = VIDEOS[currentId()]?.title ?? '');
+  showTitle();
+  document.querySelectorAll('[data-nav]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      history.pushState({}, '', a.getAttribute('href'));
+      cc.setAttribute('aria-pressed', 'false');
+      player.querySelector('video').currentTime = 0;
+      showTitle();
+      document.dispatchEvent(new CustomEvent('yt-navigate-finish'));
+    }),
+  );
+</script>
+<script src="build/harness-content.js"></script>
+</body>
+</html>
