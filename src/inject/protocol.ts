@@ -33,8 +33,12 @@ export interface Requests {
   biliState: { req: Record<string, never>; res: BiliState | null };
   /** B站：取播放器为某个分P请求过的 player/v2 接口响应（含字幕列表） */
   biliPlayer: { req: { cid: number }; res: unknown };
-  /** 用页面原始的 fetch 请求一个地址（带 cookie），返回文本 */
-  fetchText: { req: { url: string }; res: string };
+  /**
+   * 用页面原始的 fetch 请求一个地址，返回文本。
+   * 默认带 cookie；跨域且服务器只允许「任意来源」的地址（如 B站字幕文件）必须传 omit，
+   * 否则浏览器会拦截请求（Failed to fetch）。
+   */
+  fetchText: { req: { url: string; credentials?: 'include' | 'omit' }; res: string };
 }
 
 export type RequestType = keyof Requests;

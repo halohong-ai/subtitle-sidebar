@@ -165,9 +165,8 @@ async function handle(msg: RequestMessage): Promise<unknown> {
     case 'biliPlayer':
       return biliPlayers.get((msg.payload as { cid: number }).cid) ?? null;
     case 'fetchText': {
-      const res = await originalFetch((msg.payload as { url: string }).url, {
-        credentials: 'include',
-      });
+      const { url, credentials } = msg.payload as { url: string; credentials?: RequestCredentials };
+      const res = await originalFetch(url, { credentials: credentials ?? 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.text();
     }

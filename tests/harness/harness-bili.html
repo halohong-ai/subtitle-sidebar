@@ -7,6 +7,7 @@
   模拟的关键行为：
     - 播放器加载时请求 /x/player/wbi/v2（经过 main-world.js 的拦截层）
     - 页面 __INITIAL_STATE__ 只描述首次打开的视频；站内跳到别的视频后会过期
+    - 带 cookie 请求字幕文件会失败（真实服务器只允许不带 cookie 的跨域请求）
 -->
 <html>
 <head>
@@ -48,7 +49,7 @@
 
   // 替身 fetch：必须在 main-world.js 之前定义
   window.__requests__ = [];
-  window.fetch = async (input) => {
+  window.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url, 'https://www.bilibili.com');
     const q = url.searchParams;
     window.__requests__.push(url.pathname + url.search);
@@ -65,7 +66,11 @@
       return json({ code: 0, data: { pages: VIDEOS[q.get('bvid')] ?? [] } });
     }
     const m = url.pathname.match(/\/ai_subtitle\/prod\/(.+)\.json$/);
-    if (m) return json(D.subs[m[1]]);
+    if (m) {
+      // 字幕服务器返回 Access-Control-Allow-Origin: *，浏览器会拦截带 cookie 的跨域请求
+      if (init?.credentials === 'include') throw new TypeError('Failed to fetch');
+      return json(D.subs[m[1]]);
+    }
     return new Response('', { status: 404 });
   };
 </script>

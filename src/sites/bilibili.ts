@@ -152,7 +152,16 @@ async function getPlayer(
   }
 }
 
+/** 下载字幕文件。字幕服务器不接受带 cookie 的跨域请求，所以不带 cookie（B站播放器也是这样请求的）。 */
 async function download(item: BiliSubtitleItem): Promise<Fragment[]> {
-  const text = await request('fetchText', { url: normalizeSubtitleUrl(item.subtitle_url) });
+  let text: string;
+  try {
+    text = await request('fetchText', {
+      url: normalizeSubtitleUrl(item.subtitle_url),
+      credentials: 'omit',
+    });
+  } catch {
+    throw new Error('字幕文件下载失败，请刷新页面后重试');
+  }
   return parseBiliSubtitle(JSON.parse(text));
 }
