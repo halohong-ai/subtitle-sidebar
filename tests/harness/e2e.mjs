@@ -338,9 +338,12 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('已有中文字幕：提示词只要摘要', clip.includes('不需要翻译') && !clip.includes('```srt') && clip.includes('-->'), `${clip.length} 字`);
   check('复制后给出下一步提示', !!(await inPanel((root) => root.querySelector('.toast')?.textContent.includes('导入'))));
 
-  await menu('导出字幕');
+  await menu('导出双语字幕');
   const srtFile = await lastDownloadText();
-  check('导出 SRT', srtFile.name.endsWith('_bilingual.srt') && srtFile.text.includes('-->'), srtFile.name);
+  check('导出双语 SRT', srtFile.name.endsWith('_bilingual.srt') && /-->[^\n]*\n.*\n[^\n]*[\u4e00-\u9fff]/.test(srtFile.text), srtFile.name);
+  await menu('导出英文字幕');
+  const enFile = await lastDownloadText();
+  check('导出英文字幕（不含中文）', enFile.name.endsWith('_en.srt') && enFile.text.includes('-->') && !/[\u4e00-\u9fff]/.test(enFile.text), enFile.name);
   await menu('导出文本');
   check('导出 TXT', (await lastDownloadText()).text.includes('[0:00]'));
 

@@ -43,6 +43,10 @@ const TABS: Array<[Tab, string]> = [
   ['notes', '笔记'],
 ];
 
+const LANG_NAMES: Record<string, string> = {
+  en: '英文', zh: '中文', ja: '日文', ko: '韩文', fr: '法文', de: '德文', es: '西班牙文', ru: '俄文',
+};
+
 const cache = new Map<string, Transcript>();
 
 export function Panel({ adapter }: { adapter: SiteAdapter }) {
@@ -172,9 +176,19 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   }
 
   const filename = safeFilename(adapter.title());
+  const hasTrans = !!transcript?.cues.some((c) => c.trans);
+  const origBase = transcript?.lang.toLowerCase().split('-')[0] ?? '';
 
   const actions = {
-    exportSrt: () => transcript && downloadText(`${filename}_bilingual.srt`, toSrt(transcript.cues)),
+    exportSrt: () =>
+      transcript &&
+      downloadText(hasTrans ? `${filename}_bilingual.srt` : `${filename}.srt`, toSrt(transcript.cues)),
+    exportOrig: () =>
+      transcript &&
+      downloadText(
+        `${filename}_${origBase || 'original'}.srt`,
+        toSrt(transcript.cues.map((c) => ({ ...c, trans: undefined }))),
+      ),
     exportTxt: () => transcript && downloadText(`${filename}.txt`, toTxt(transcript.cues)),
     copyPrompt: async () => {
       if (!transcript) return;
@@ -254,9 +268,11 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         </nav>
         <Menu
           hasTranscript={!!transcript}
+          origName={hasTrans ? (LANG_NAMES[origBase] ?? '原文') : undefined}
           imported={!!data?.transcript}
           onImport={() => setImporting(true)}
           onExportSrt={actions.exportSrt}
+          onExportOrig={actions.exportOrig}
           onExportTxt={actions.exportTxt}
           onCopyPrompt={actions.copyPrompt}
           onRestoreSite={actions.restoreSite}

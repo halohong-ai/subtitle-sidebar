@@ -32,7 +32,7 @@ npm run build
 
 - **复制 AI 提示词**：把字幕和生成规则（与 bilingual-srt-translator skill 一致）复制到剪贴板，粘贴到任意 AI。已有中文字幕（原文是中文，或已有中文译文，包括 YouTube 机翻）时只让 AI 生成摘要；没有中文字幕时让 AI 生成中英双语 SRT 和摘要
 - **导入**：直接粘贴 AI 的整段回复，自动从代码块里识别双语 SRT 和摘要 JSON（AI 分几次回复的 SRT 会拼起来）；也可以选文件（.srt、summary.json）
-- **导出**：字幕 SRT（双语，格式同 skill）、纯文本 TXT
+- **导出**：双语字幕 SRT（格式同 skill）、只含原文的字幕 SRT（如英文，对机翻不满意时可以拿去自己翻译）、纯文本 TXT
 - **恢复为网站字幕**：导入的字幕会代替网站字幕，可随时切回
 
 - 摘要：按话题分段，当前话题高亮，点击跳到话题开头
@@ -127,4 +127,5 @@ python3 tests/harness/prepare-data.py a_bilingual.srt [b_bilingual.srt]
 - [ ] 带 `<b>` 等标记的字幕显示干净
 - [ ] 收藏句子、写批注、导出 Markdown，在 Obsidian / Notion 里时间戳链接能打开视频对应位置
 - [ ] 导出的 SRT / TXT 用记事本、剪映等打开中文不乱码
+- [ ] 有机翻中文的视频，「导出英文字幕」得到的 SRT 只含英文
 - [ ] 刷新页面、换视频再回来，导入的内容和笔记都还在
