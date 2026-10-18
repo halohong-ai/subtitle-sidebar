@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseJson3 } from '../src/core/json3';
-import { buildCues, joinText, lastAtOrBefore, mergeSentences } from '../src/core/normalize';
+import { buildCues, joinText, lastAtOrBefore, mergeCues, mergeSentences } from '../src/core/normalize';
 import { formatClock, parseClock } from '../src/core/time';
 
 // 自动字幕：逐词、无标点，中间有一次 1.5 秒的停顿。
@@ -152,6 +152,20 @@ describe('buildCues', () => {
   it('没有译文轨道时不带 trans 字段', () => {
     const cues = buildCues(parseJson3(manualJson3), false);
     expect(cues[0]).not.toHaveProperty('trans');
+  });
+});
+
+describe('mergeCues', () => {
+  it('合并跨行的双语句子，原文译文一起合并', () => {
+    const cues = [
+      { id: 1, start: 0, end: 2000, text: 'What are we calling this big event that', trans: '我们该怎么称呼这件大事——' },
+      { id: 2, start: 2000, end: 4000, text: 'happened in October?', trans: '十月初发生的那件事？' },
+      { id: 3, start: 4000, end: 5000, text: 'Nobody knows.', trans: '没人知道。' },
+    ];
+    expect(mergeCues(cues)).toEqual([
+      { id: 1, start: 0, end: 4000, text: 'What are we calling this big event that happened in October?', trans: '我们该怎么称呼这件大事——十月初发生的那件事？' },
+      { id: 2, start: 4000, end: 5000, text: 'Nobody knows.', trans: '没人知道。' },
+    ]);
   });
 });
 

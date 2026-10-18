@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "字幕侧栏 Subtitle Sidebar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "在 YouTube 和 B站视频右侧显示可滚动、可点击跳转、可搜索的双语字幕浮窗。",
   "minimum_chrome_version": "111",
-  "permissions": ["storage"],
+  "permissions": ["storage", "unlimitedStorage"],
   "content_scripts": [
     {
       "matches": ["*://www.youtube.com/*", "*://www.bilibili.com/video/*"],

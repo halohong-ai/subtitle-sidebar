@@ -10,9 +10,12 @@ interface Props {
   mode: LangMode;
   fontSize: number;
   getVideo: () => HTMLVideoElement | null;
+  /** 已收藏句子的开始时间 */
+  notedStarts: Set<number>;
+  onToggleNote: (cue: Cue) => void;
 }
 
-export function TranscriptTab({ cues, mode, fontSize, getVideo }: Props) {
+export function TranscriptTab({ cues, mode, fontSize, getVideo, notedStarts, onToggleNote }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(-1);
   const [follow, setFollow] = useState(true);
@@ -198,6 +201,8 @@ export function TranscriptTab({ cues, mode, fontSize, getVideo }: Props) {
             active={i === active}
             current={i === current}
             looping={i === loopIdx}
+            noted={notedStarts.has(cue.start)}
+            onToggleNote={onToggleNote}
             mode={mode}
             query={matchSet.has(i) ? q : ''}
             onSeek={onSeek}
@@ -219,12 +224,16 @@ interface RowProps {
   active: boolean;
   current: boolean;
   looping: boolean;
+  noted: boolean;
+  onToggleNote: (cue: Cue) => void;
   mode: LangMode;
   query: string;
   onSeek: (cue: Cue) => void;
 }
 
-const Row = memo(function Row({ cue, active, current, looping, mode, query, onSeek }: RowProps) {
+const Row = memo(function Row({
+  cue, active, current, looping, noted, onToggleNote, mode, query, onSeek,
+}: RowProps) {
   const showOrig = mode !== 'trans' || !cue.trans;
   const showTrans = mode !== 'orig' && !!cue.trans;
   const cls = ['row', active && 'active', current && 'current', looping && 'looping']
@@ -240,6 +249,19 @@ const Row = memo(function Row({ cue, active, current, looping, mode, query, onSe
         {showOrig && <p class="orig">{highlight(cue.text, query)}</p>}
         {showTrans && <p class="trans">{highlight(cue.trans!, query)}</p>}
       </div>
+      <button
+        type="button"
+        class={`star${noted ? ' on' : ''}`}
+        title={noted ? '取消收藏' : '收藏到笔记'}
+        aria-label={noted ? '取消收藏' : '收藏到笔记'}
+        aria-pressed={noted}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleNote(cue);
+        }}
+      >
+        {noted ? '★' : '☆'}
+      </button>
     </div>
   );
 });

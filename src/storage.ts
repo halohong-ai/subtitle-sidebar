@@ -1,3 +1,5 @@
+import type { VideoData } from './core/types';
+
 export type LangMode = 'both' | 'orig' | 'trans';
 
 export interface Settings {
@@ -14,29 +16,41 @@ export const DEFAULT_SETTINGS: Settings = {
   collapsed: false,
 };
 
-const KEY = 'settings';
-
-// 正常运行在扩展里用 chrome.storage；直接注入页面调试时退回 localStorage。
+// 正常运行在扩展里用 chrome.storage（属于扩展自己，清除网站数据不会丢）；
+// 直接注入页面调试时退回 localStorage。
 const hasChromeStorage = typeof chrome !== 'undefined' && !!chrome.storage?.local;
 
-export async function loadSettings(): Promise<Settings> {
+async function getItem<T>(key: string): Promise<T | undefined> {
   try {
-    if (hasChromeStorage) {
-      const got = await chrome.storage.local.get(KEY);
-      return { ...DEFAULT_SETTINGS, ...(got[KEY] as Partial<Settings> | undefined) };
-    }
-    const raw = localStorage.getItem(`subtitle-sidebar:${KEY}`);
-    return { ...DEFAULT_SETTINGS, ...(raw ? (JSON.parse(raw) as Partial<Settings>) : {}) };
+    if (hasChromeStorage) return (await chrome.storage.local.get(key))[key] as T | undefined;
+    const raw = localStorage.getItem(`subtitle-sidebar:${key}`);
+    return raw ? (JSON.parse(raw) as T) : undefined;
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return undefined;
   }
 }
 
-export async function saveSettings(settings: Settings): Promise<void> {
+async function setItem(key: string, value: unknown): Promise<void> {
   try {
-    if (hasChromeStorage) await chrome.storage.local.set({ [KEY]: settings });
-    else localStorage.setItem(`subtitle-sidebar:${KEY}`, JSON.stringify(settings));
+    if (hasChromeStorage) await chrome.storage.local.set({ [key]: value });
+    else localStorage.setItem(`subtitle-sidebar:${key}`, JSON.stringify(value));
   } catch {
     // 存不了就只在本次页面生效
   }
+}
+
+export async function loadSettings(): Promise<Settings> {
+  return { ...DEFAULT_SETTINGS, ...(await getItem<Partial<Settings>>('settings')) };
+}
+
+export function saveSettings(settings: Settings): Promise<void> {
+  return setItem('settings', settings);
+}
+
+export async function loadVideoData(videoKey: string): Promise<VideoData> {
+  return { notes: [], ...(await getItem<Partial<VideoData>>(`video:${videoKey}`)) };
+}
+
+export function saveVideoData(videoKey: string, data: VideoData): Promise<void> {
+  return setItem(`video:${videoKey}`, data);
 }

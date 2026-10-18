@@ -42,6 +42,15 @@ export const bilibili: SiteAdapter = {
     );
   },
 
+  title() {
+    return document.title.replace(/_哔哩哔哩_bilibili$/, '').trim();
+  },
+
+  timeUrl(videoKey, ms) {
+    const [, bvid, p] = videoKey.split(':');
+    return `https://www.bilibili.com/video/${bvid}/?p=${p || 1}&t=${Math.floor(ms / 1000)}`;
+  },
+
   isDark() {
     // B站没有稳定的深色模式标记，按页面背景色亮度判断。
     const bg = getComputedStyle(document.body).backgroundColor.match(/\d+(\.\d+)?/g);

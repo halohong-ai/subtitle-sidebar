@@ -1,7 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import type { Transcript } from '../core/types';
+import type { ImportResult } from '../core/importer';
+import { notesToMarkdown } from '../core/markdown';
+import { mergeCues } from '../core/normalize';
+import { buildPrompt } from '../core/prompt';
+import { toSrt, toTxt } from '../core/srt';
+import type { Cue, Note, Transcript, VideoData } from '../core/types';
 import { NoCaptionsError, type SiteAdapter } from '../sites/types';
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings } from '../storage';
+import {
+  DEFAULT_SETTINGS,
+  loadSettings,
+  loadVideoData,
+  saveSettings,
+  saveVideoData,
+  type Settings,
+} from '../storage';
+import { copyText, downloadText, safeFilename } from './files';
+import { ImportDialog } from './ImportDialog';
+import { Menu } from './Menu';
+import { MindmapTab } from './MindmapTab';
+import { NotesTab } from './NotesTab';
+import { SummaryTab } from './SummaryTab';
 import { Toolbar } from './Toolbar';
 import { TranscriptTab } from './TranscriptTab';
 
@@ -9,6 +27,7 @@ const MIN_WIDTH = 280;
 const MAX_WIDTH = 640;
 const MIN_FONT = 11;
 const MAX_FONT = 22;
+const LONG_PROMPT_CHARS = 100_000;
 
 type Status =
   | { kind: 'hidden' }
@@ -16,6 +35,15 @@ type Status =
   | { kind: 'ready'; transcript: Transcript }
   | { kind: 'empty' }
   | { kind: 'error'; message: string };
+
+type Tab = 'transcript' | 'summary' | 'mindmap' | 'notes';
+
+const TABS: Array<[Tab, string]> = [
+  ['transcript', '字幕'],
+  ['summary', '摘要'],
+  ['mindmap', '导图'],
+  ['notes', '笔记'],
+];
 
 const cache = new Map<string, Transcript>();
 
@@ -26,6 +54,9 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   const [reloadTick, setReloadTick] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [dark, setDark] = useState(() => adapter.isDark());
+  const [tab, setTab] = useState<Tab>('transcript');
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -42,7 +73,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   // 站内跳转
   useEffect(() => adapter.onNavigate(() => setVideoKey(adapter.videoKey())), [adapter]);
 
-  // 读取字幕
+  // 读取网站字幕
   useEffect(() => {
     if (!videoKey) {
       setStatus({ kind: 'hidden' });
@@ -70,6 +101,8 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     return () => ctrl.abort();
   }, [adapter, videoKey, reloadTick]);
 
+  const { data, updateData } = useVideoData(videoKey);
+
   // 全屏时隐藏；跟随网站的深色模式
   useEffect(() => {
     const onFs = () => setFullscreen(!!document.fullscreenElement);
@@ -84,10 +117,45 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     };
   }, [adapter]);
 
+  // 提示条几秒后自动消失
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const getVideo = useCallback(() => adapter.video(), [adapter]);
   const resize = useResize(settings.width, (w) => update({ width: w }));
 
-  if (status.kind === 'hidden' || fullscreen) return null;
+  // 导入的字幕优先于网站字幕
+  const siteTranscript = status.kind === 'ready' ? status.transcript : null;
+  const transcript = data?.transcript ?? siteTranscript;
+  const notes = data?.notes ?? [];
+
+  const onToggleNote = useCallback(
+    (cue: Cue) =>
+      updateData((d) => {
+        const exists = d.notes.some((n) => n.start === cue.start);
+        const next: Note[] = exists
+          ? d.notes.filter((n) => n.start !== cue.start)
+          : [
+              ...d.notes,
+              {
+                id: `n_${cue.start}_${Date.now().toString(36)}`,
+                start: cue.start,
+                text: cue.text,
+                trans: cue.trans,
+                kind: 'idea',
+                comment: '',
+                createdAt: Date.now(),
+              },
+            ];
+        return { ...d, notes: next };
+      }),
+    [updateData],
+  );
+
+  if (status.kind === 'hidden' || fullscreen || !videoKey) return null;
 
   const theme = dark ? 'dark' : 'light';
 
@@ -105,7 +173,69 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     );
   }
 
-  const transcript = status.kind === 'ready' ? status.transcript : null;
+  const filename = safeFilename(adapter.title());
+
+  const actions = {
+    exportSrt: () => transcript && downloadText(`${filename}_bilingual.srt`, toSrt(transcript.cues)),
+    exportTxt: () => transcript && downloadText(`${filename}.txt`, toTxt(transcript.cues)),
+    copyPrompt: async () => {
+      if (!transcript) return;
+      const prompt = buildPrompt({
+        title: adapter.title(),
+        url: adapter.timeUrl(videoKey, 0),
+        cues: transcript.cues,
+        origIsZh: transcript.lang.toLowerCase().startsWith('zh'),
+      });
+      try {
+        await copyText(prompt);
+        setToast(
+          '已复制。粘贴到 ChatGPT、DeepSeek、Kimi、Claude 等 AI，等它回复完，把整段回复复制下来，点 ⋯ → 导入 → 粘贴。' +
+            (prompt.length > LONG_PROMPT_CHARS ? ' 字幕较长，AI 可能要分几次回复，全部复制后一起粘贴即可。' : ''),
+        );
+      } catch {
+        setToast('复制失败，请再点一次');
+      }
+    },
+    restoreSite: () => {
+      updateData((d) => ({ ...d, transcript: undefined }));
+      setToast('已恢复为网站字幕');
+    },
+  };
+
+  const applyImport = (result: ImportResult, image: string | null): string => {
+    const parts: string[] = [];
+    updateData((d) => {
+      const next = { ...d };
+      if (result.srt) {
+        const zh = result.srt.origIsCjk;
+        next.transcript = {
+          videoKey,
+          source: 'import',
+          lang: zh ? 'zh' : 'en',
+          transLang: result.srt.hasTrans ? (zh ? 'en' : 'zh') : undefined,
+          label: '导入的字幕',
+          cues: mergeCues(result.srt.cues),
+        };
+      }
+      if (result.summary) next.summary = result.summary;
+      if (result.mindmap) {
+        next.mindmap = result.mindmap;
+        next.mindmapImage = undefined;
+      }
+      if (image) {
+        next.mindmapImage = image;
+        next.mindmap = undefined;
+      }
+      return next;
+    });
+    if (result.srt) parts.push(`字幕 ${result.srt.cues.length} 句`);
+    if (result.summary) parts.push(`摘要 ${result.summary.length} 项`);
+    if (result.mindmap || image) parts.push('导图');
+    if (result.summary) setTab('summary');
+    else if (result.mindmap || image) setTab('mindmap');
+    else if (result.srt) setTab('transcript');
+    return parts.length ? `已导入：${parts.join('、')}` : '';
+  };
 
   return (
     <aside
@@ -118,10 +248,30 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     >
       <div class="resize" onPointerDown={resize.onPointerDown} title="拖动调整宽度" />
       <header>
-        <div class="title">
-          <strong>字幕</strong>
-          {transcript && <span class="source" title={transcript.label}>{transcript.label}</span>}
-        </div>
+        <nav class="tabs" role="tablist">
+          {TABS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              class={tab === id ? 'on' : ''}
+              onClick={() => setTab(id)}
+            >
+              {label}
+              {id === 'notes' && notes.length > 0 && <span class="badge">{notes.length}</span>}
+            </button>
+          ))}
+        </nav>
+        <Menu
+          hasTranscript={!!transcript}
+          imported={!!data?.transcript}
+          onImport={() => setImporting(true)}
+          onExportSrt={actions.exportSrt}
+          onExportTxt={actions.exportTxt}
+          onCopyPrompt={actions.copyPrompt}
+          onRestoreSite={actions.restoreSite}
+        />
         <button
           type="button"
           class="icon"
@@ -133,47 +283,141 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         </button>
       </header>
 
-      {transcript && (
-        <Toolbar
-          lang={transcript.lang}
-          transLang={transcript.transLang}
-          mode={settings.langMode}
-          fontSize={settings.fontSize}
-          onMode={(m) => update({ langMode: m })}
-          onFontSize={(n) => update({ fontSize: clamp(n, MIN_FONT, MAX_FONT) })}
-        />
+      {transcript && tab === 'transcript' && (
+        <p class="source" title={transcript.label}>
+          {transcript.label}
+        </p>
       )}
 
-      {status.kind === 'loading' && <p class="state">正在读取字幕…</p>}
-      {status.kind === 'empty' && (
-        <p class="state">这个视频没有字幕。</p>
-      )}
-      {status.kind === 'error' && (
-        <div class="state">
-          <p>{status.message}</p>
-          <button type="button" class="retry" onClick={() => setReloadTick((n) => n + 1)}>
-            重试
+      {toast && (
+        <div class="toast" role="status">
+          <span>{toast}</span>
+          <button type="button" class="icon" aria-label="关闭提示" onClick={() => setToast(null)}>
+            ×
           </button>
         </div>
       )}
-      {transcript && (
-        <TranscriptTab
-          key={transcript.videoKey}
-          cues={transcript.cues}
-          mode={settings.langMode}
-          fontSize={settings.fontSize}
+
+      {tab === 'transcript' && (
+        <>
+          {transcript && (
+            <Toolbar
+              lang={transcript.lang}
+              transLang={transcript.transLang}
+              mode={settings.langMode}
+              fontSize={settings.fontSize}
+              onMode={(m) => update({ langMode: m })}
+              onFontSize={(n) => update({ fontSize: clamp(n, MIN_FONT, MAX_FONT) })}
+            />
+          )}
+          {!transcript && status.kind === 'loading' && <p class="state">正在读取字幕…</p>}
+          {!transcript && status.kind === 'empty' && (
+            <p class="state">这个视频没有字幕。可以点 ⋯ → 导入，导入 SRT 字幕文件。</p>
+          )}
+          {!transcript && status.kind === 'error' && (
+            <div class="state">
+              <p>{status.message}</p>
+              <button type="button" class="retry" onClick={() => setReloadTick((n) => n + 1)}>
+                重试
+              </button>
+            </div>
+          )}
+          {transcript && (
+            <TranscriptTab
+              key={`${transcript.videoKey}:${transcript.source}`}
+              cues={transcript.cues}
+              mode={settings.langMode}
+              fontSize={settings.fontSize}
+              getVideo={getVideo}
+              notedStarts={new Set(notes.map((n) => n.start))}
+              onToggleNote={onToggleNote}
+            />
+          )}
+        </>
+      )}
+
+      {tab === 'summary' && (
+        <SummaryTab key={videoKey} items={data?.summary} getVideo={getVideo} />
+      )}
+
+      {tab === 'mindmap' && (
+        <MindmapTab
+          key={videoKey}
+          mindmap={data?.mindmap}
+          image={data?.mindmapImage}
+          dark={dark}
+          filename={filename}
           getVideo={getVideo}
+        />
+      )}
+
+      {tab === 'notes' && (
+        <NotesTab
+          notes={notes}
+          getVideo={getVideo}
+          onChange={(next) => updateData((d) => ({ ...d, notes: next }))}
+          onExport={() =>
+            downloadText(
+              `${filename}_notes.md`,
+              notesToMarkdown(adapter.title(), adapter.timeUrl(videoKey, 0), notes, (ms) =>
+                adapter.timeUrl(videoKey, ms),
+              ),
+              'text/markdown',
+            )
+          }
+        />
+      )}
+
+      {importing && (
+        <ImportDialog
+          durationMs={(getVideo()?.duration || 0) * 1000}
+          onApply={applyImport}
+          onClose={() => setImporting(false)}
         />
       )}
     </aside>
   );
 }
 
+/** 当前视频的导入数据和笔记：切换视频时读取，修改后稍等片刻再保存（连续打字只存一次）。 */
+function useVideoData(videoKey: string | null) {
+  const [data, setData] = useState<VideoData | null>(null);
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    setData(null);
+    if (!videoKey) return;
+    let live = true;
+    loadVideoData(videoKey).then((d) => live && setData(d));
+    return () => {
+      live = false;
+    };
+  }, [videoKey]);
+
+  const updateData = useCallback(
+    (fn: (d: VideoData) => VideoData) => {
+      if (!videoKey) return;
+      setData((prev) => {
+        const next = fn(prev ?? { notes: [] });
+        clearTimeout(timers.current.get(videoKey));
+        timers.current.set(
+          videoKey,
+          setTimeout(() => saveVideoData(videoKey, next), 300),
+        );
+        return next;
+      });
+    },
+    [videoKey],
+  );
+
+  return { data, updateData };
+}
+
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-/** 在搜索框里打字时，不让按键冒泡到 YouTube 的快捷键（空格暂停、F 全屏等）。 */
+/** 在输入框里打字时，不让按键冒泡到网站的快捷键（空格暂停、F 全屏等）。 */
 function stopIfTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) e.stopPropagation();

@@ -39,3 +39,50 @@ export interface Transcript {
   label: string;
   cues: Cue[];
 }
+
+/** 摘要：与 bilingual-srt-translator skill 的 summary.json 对应，start 已换算成毫秒。 */
+export interface SummaryItem {
+  start: number;
+  title: string;
+  summary: string;
+}
+
+/** 导图：与 skill 的导图 spec 对应，time 已换算成毫秒（没有时间点时为 null）。 */
+export interface MindmapBranch {
+  title: string;
+  icon?: string;
+  time: number | null;
+  points: string[];
+}
+
+export interface Mindmap {
+  title: string;
+  subtitle?: string;
+  center: string;
+  centerIcon?: string;
+  branches: MindmapBranch[];
+}
+
+export type NoteKind = 'idea' | 'phrase';
+
+/** 笔记按句子的开始时间对应字幕（换了字幕来源也能对上），不依赖句子 id。 */
+export interface Note {
+  id: string;
+  start: number;
+  text: string;
+  trans?: string;
+  kind: NoteKind;
+  comment: string;
+  createdAt: number;
+}
+
+/** 每个视频单独保存的数据 */
+export interface VideoData {
+  /** 导入的字幕；存在时代替网站字幕 */
+  transcript?: Transcript;
+  summary?: SummaryItem[];
+  mindmap?: Mindmap;
+  /** 导入的导图图片（data URL），如 skill 生成的 PNG */
+  mindmapImage?: string;
+  notes: Note[];
+}

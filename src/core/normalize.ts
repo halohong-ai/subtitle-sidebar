@@ -120,6 +120,26 @@ function mergeLines(frags: Fragment[], punctuated: boolean): Fragment[] {
   return out;
 }
 
+/**
+ * 合并导入的双语字幕里被拆到下一行的句子，原文和译文一起合并（规则同 mergeLines）。
+ * skill 产出的双语 SRT 保留了网站字幕的原始分行，合并后更好读。
+ */
+export function mergeCues(cues: Cue[]): Cue[] {
+  if (!hasPunctuation(cues)) return cues;
+  const out: Cue[] = [];
+  for (const c of cues) {
+    const prev = out[out.length - 1];
+    if (prev && continues(prev, c)) {
+      prev.text = joinText(prev.text, c.text);
+      prev.end = Math.max(prev.end, c.end);
+      if (c.trans) prev.trans = joinText(prev.trans ?? '', c.trans);
+    } else {
+      out.push({ ...c });
+    }
+  }
+  return out.map((c, i) => ({ ...c, id: i + 1 }));
+}
+
 function continues(prev: Fragment, next: Fragment): boolean {
   if (SENTENCE_END.test(prev.text)) return false;
   if (next.start - prev.end >= LONG_PAUSE_MS) return false;

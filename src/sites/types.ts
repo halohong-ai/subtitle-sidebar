@@ -7,6 +7,10 @@ export interface SiteAdapter {
   videoKey(): string | null;
   /** 页面上正在播放的 <video> 元素 */
   video(): HTMLVideoElement | null;
+  /** 视频标题（用于导出文件名和笔记） */
+  title(): string;
+  /** 能直接跳到视频某个时间点的链接（用于笔记导出） */
+  timeUrl(videoKey: string, ms: number): string;
   /** 网站当前是否为深色主题 */
   isDark(): boolean;
   /** 站内跳转（换视频）时回调；返回取消订阅函数 */

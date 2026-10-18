@@ -29,6 +29,15 @@ export const youtube: SiteAdapter = {
     return document.querySelector<HTMLVideoElement>('#movie_player video');
   },
 
+  title() {
+    return document.title.replace(/^\(\d+\)\s*/, '').replace(/\s*-\s*YouTube$/, '').trim();
+  },
+
+  timeUrl(videoKey, ms) {
+    const v = videoKey.replace(/^yt:/, '');
+    return `https://www.youtube.com/watch?v=${v}&t=${Math.floor(ms / 1000)}s`;
+  },
+
   isDark() {
     return document.documentElement.hasAttribute('dark');
   },
