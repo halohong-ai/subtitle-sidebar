@@ -35,8 +35,8 @@ export function SummaryTab({ items, getVideo, notedStarts, onToggleNote }: Props
     return (
       <div class="empty">
         <p>还没有摘要。</p>
-        <p>点右上角 ⋯ →「复制 AI 提示词」，粘贴到任意 AI。</p>
-        <p>AI 返回摘要文件后，再点右上角 ⋯ →「导入」，导入此摘要文件。</p>
+        <p>第一步：点右上角 ⋯ →「复制 AI 提示词」，粘贴到任意 AI。</p>
+        <p>第二步：AI 返回摘要后，再点右上角 ⋯ →「导入」，导入此摘要。</p>
       </div>
     );
   }
