@@ -1,3 +1,4 @@
+import { cleanText } from './text';
 import type { Fragment } from './types';
 
 interface Json3Seg {
@@ -36,14 +37,14 @@ export function parseJson3(data: Json3): Fragment[] {
 
     if (wordLevel) {
       for (const seg of ev.segs) {
-        const text = clean(seg.utf8);
+        const text = cleanText(seg.utf8);
         if (!text) continue;
         wordIdx.push(out.length);
         wordEventEnd.push(evEnd);
         out.push({ start: t0 + (seg.tOffsetMs ?? 0), end: evEnd, text });
       }
     } else {
-      const text = clean(ev.segs.map((s) => s.utf8 ?? '').join(''));
+      const text = cleanText(ev.segs.map((s) => s.utf8 ?? '').join(''));
       if (text) out.push({ start: t0, end: evEnd, text });
     }
   }
@@ -57,8 +58,4 @@ export function parseJson3(data: Json3): Fragment[] {
 
   out.sort((a, b) => a.start - b.start);
   return out;
-}
-
-function clean(s: string | undefined): string {
-  return (s ?? '').replace(/\s+/g, ' ').trim();
 }

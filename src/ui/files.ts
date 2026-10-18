@@ -40,20 +40,7 @@ export async function copyText(text: string): Promise<void> {
   }
 }
 
-export interface ReadFile {
-  name: string;
-  /** 图片为 data URL，其余为文本 */
-  content: string;
-  isImage: boolean;
-}
-
-export function readFile(file: File): Promise<ReadFile> {
-  const isImage = file.type.startsWith('image/');
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve({ name: file.name, content: String(reader.result), isImage });
-    reader.onerror = () => reject(reader.error);
-    if (isImage) reader.readAsDataURL(file);
-    else reader.readAsText(file, 'utf-8');
-  });
+/** 以 UTF-8 文本读取文件。 */
+export function readFile(file: File): Promise<string> {
+  return file.text();
 }

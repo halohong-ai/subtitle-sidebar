@@ -1,14 +1,13 @@
-// 识别导入的内容：文件，或从 AI 回复里整段粘贴的文字。
+// 识别导入的内容：文件，或从 AI 回复里整段粘贴的文字（双语 SRT、摘要 JSON）。
 // 粘贴时，AI 通常把 SRT 和 JSON 放在 ``` 代码块里；没有代码块就把整段当成一份内容。
 
 import { parseSrt, type ParsedSrt } from './srt';
-import { FormatError, parseMindmap, parseSummary } from './summary';
-import type { Mindmap, SummaryItem } from './types';
+import { FormatError, parseSummary } from './summary';
+import type { SummaryItem } from './types';
 
 export interface ImportResult {
   srt?: ParsedSrt;
   summary?: SummaryItem[];
-  mindmap?: Mindmap;
   /** 无法识别或格式不对的说明，给用户看 */
   errors: string[];
 }
@@ -21,7 +20,7 @@ export function splitPasted(text: string): string[] {
 
 /**
  * 识别若干段文字。多段 SRT（AI 分几次回复）会拼成一份；
- * JSON 可以是 summary.json、导图 spec，或 {summary, mindmap} 合在一起。
+ * JSON 可以是 summary.json，或 {summary: …} 包了一层。
  */
 export function importTexts(chunks: string[], durationMs = 0): ImportResult {
   const result: ImportResult = { errors: [] };
@@ -58,16 +57,11 @@ function readJson(json: unknown, durationMs: number, result: ImportResult): void
 
   if (obj && 'items' in obj) {
     tryRead(() => (result.summary = parseSummary(obj, durationMs)));
-  } else if (obj && 'branches' in obj) {
-    tryRead(() => (result.mindmap = parseMindmap(obj)));
-  } else if (obj && ('summary' in obj || 'mindmap' in obj)) {
-    if (obj.summary) {
-      const s = Array.isArray(obj.summary) ? { items: obj.summary } : obj.summary;
-      tryRead(() => (result.summary = parseSummary(s, durationMs)));
-    }
-    if (obj.mindmap) tryRead(() => (result.mindmap = parseMindmap(obj.mindmap)));
+  } else if (obj && 'summary' in obj) {
+    const s = Array.isArray(obj.summary) ? { items: obj.summary } : obj.summary;
+    tryRead(() => (result.summary = parseSummary(s, durationMs)));
   } else {
-    result.errors.push('JSON 既不是摘要（需要 items）也不是导图（需要 branches），已跳过');
+    result.errors.push('这段 JSON 不是摘要（需要 items 字段），已跳过');
   }
 }
 

@@ -17,7 +17,6 @@ import {
 import { copyText, downloadText, safeFilename } from './files';
 import { ImportDialog } from './ImportDialog';
 import { Menu } from './Menu';
-import { MindmapTab } from './MindmapTab';
 import { NotesTab } from './NotesTab';
 import { SummaryTab } from './SummaryTab';
 import { Toolbar } from './Toolbar';
@@ -36,12 +35,11 @@ type Status =
   | { kind: 'empty' }
   | { kind: 'error'; message: string };
 
-type Tab = 'transcript' | 'summary' | 'mindmap' | 'notes';
+type Tab = 'transcript' | 'summary' | 'notes';
 
 const TABS: Array<[Tab, string]> = [
   ['transcript', '字幕'],
   ['summary', '摘要'],
-  ['mindmap', '导图'],
   ['notes', '笔记'],
 ];
 
@@ -184,7 +182,8 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         title: adapter.title(),
         url: adapter.timeUrl(videoKey, 0),
         cues: transcript.cues,
-        origIsZh: transcript.lang.toLowerCase().startsWith('zh'),
+        lang: transcript.lang,
+        transLang: transcript.transLang,
       });
       try {
         await copyText(prompt);
@@ -202,7 +201,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     },
   };
 
-  const applyImport = (result: ImportResult, image: string | null): string => {
+  const applyImport = (result: ImportResult): string => {
     const parts: string[] = [];
     updateData((d) => {
       const next = { ...d };
@@ -218,21 +217,11 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
         };
       }
       if (result.summary) next.summary = result.summary;
-      if (result.mindmap) {
-        next.mindmap = result.mindmap;
-        next.mindmapImage = undefined;
-      }
-      if (image) {
-        next.mindmapImage = image;
-        next.mindmap = undefined;
-      }
       return next;
     });
     if (result.srt) parts.push(`字幕 ${result.srt.cues.length} 句`);
     if (result.summary) parts.push(`摘要 ${result.summary.length} 项`);
-    if (result.mindmap || image) parts.push('导图');
     if (result.summary) setTab('summary');
-    else if (result.mindmap || image) setTab('mindmap');
     else if (result.srt) setTab('transcript');
     return parts.length ? `已导入：${parts.join('、')}` : '';
   };
@@ -338,17 +327,6 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
 
       {tab === 'summary' && (
         <SummaryTab key={videoKey} items={data?.summary} getVideo={getVideo} />
-      )}
-
-      {tab === 'mindmap' && (
-        <MindmapTab
-          key={videoKey}
-          mindmap={data?.mindmap}
-          image={data?.mindmapImage}
-          dark={dark}
-          filename={filename}
-          getVideo={getVideo}
-        />
       )}
 
       {tab === 'notes' && (

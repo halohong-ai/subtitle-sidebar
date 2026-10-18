@@ -159,6 +159,18 @@ const s5 = await inPanel((root) => ({
 check('站内跳转后换成新视频的字幕', s5.rows > 3000, `${s5.rows} 句`);
 check('机翻被限流时只显示原文，不报错', s5.trans === 0 && !s5.segmented, s5.source);
 check('自动字幕合句后长度适中', (s5.first?.split(' ').length ?? 0) <= 22, s5.first);
+await page.evaluate(() => {
+  window.__clipboard__ = '';
+  navigator.clipboard.writeText = async (t) => {
+    window.__clipboard__ = t;
+  };
+});
+await inPanel((root) => root.querySelector('.menu > .icon').click());
+await inPanel((root) => [...root.querySelectorAll('.menu-list button')].find((b) => b.textContent.includes('复制 AI 提示词')).click());
+await sleep(300);
+const clipAsr = await page.evaluate(() => window.__clipboard__);
+check('没有中文字幕：提示词要求生成中英双语 SRT + 摘要', clipAsr.includes('中英双语字幕') && clipAsr.includes('```srt') && clipAsr.includes('{"items"'), `${clipAsr.length} 字`);
+await inPanel((root) => root.querySelector('.toast .icon')?.click());
 await page.screenshot({ path: join(shotDir, 'e2e-3-asr.png') });
 
 // ---------- 场景 3：无字幕 ----------
@@ -277,30 +289,15 @@ const b3 = await inPanel((root) => ({
 }));
 check('B站：识别出错的字幕并重新请求', !!b3.first && !b3.first.includes('别的视频'), b3.first ?? b3.error);
 
-// ---------- 场景 7（M3）：提示词、导入、摘要、导图、笔记 ----------
+// ---------- 场景 7（M3）：提示词、导入、摘要、笔记 ----------
 const TAO_SRT = '/Volumes/TU820/Claude/Terence_Tao_No_More_Heroes_bilingual.srt';
 const TAO_SUMMARY = '/Volumes/TU820/Claude/Terence_Tao_No_More_Heroes_summary.json';
-const TAO_PNG = '/Volumes/TU820/Claude/Terence_Tao_No_More_Heroes_mindmap.png';
 if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   const summary = JSON.parse(readFileSync(TAO_SUMMARY, 'utf8'));
-  const mm = (start) => start.slice(3, 8); // 00:01:15,439 → 01:15
-  const mindmap = {
-    title: '没有英雄的数学',
-    subtitle: 'Terence Tao 访谈',
-    center: '证明过剩\\n理解稀缺',
-    center_icon: 'bulb',
-    branches: summary.items.slice(0, 8).map((it, i) => ({
-      title: it.title,
-      icon: ['chat', 'trophy', 'robot', 'book', 'people', 'scale', 'rocket', 'brain'][i],
-      time: mm(it.start),
-      points: [it.summary.slice(0, 16), it.summary.slice(16, 32)].filter(Boolean),
-    })),
-  };
   const reply = [
     '好的，以下是三部分结果。',
     '```srt', readFileSync(TAO_SRT, 'utf8'), '```',
     '```json', JSON.stringify(summary), '```',
-    '```json', JSON.stringify(mindmap), '```',
   ].join('\n');
 
   await page.goto(`${base}?v=MANUAL00001`);
@@ -338,7 +335,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
 
   await menu('复制 AI 提示词');
   const clip = await page.evaluate(() => window.__clipboard__);
-  check('复制 AI 提示词', clip.includes('## 字幕') && clip.includes('-->') && clip.includes('```json'), `${clip.length} 字`);
+  check('已有中文字幕：提示词只要摘要', clip.includes('不需要翻译') && !clip.includes('```srt') && clip.includes('-->'), `${clip.length} 字`);
   check('复制后给出下一步提示', !!(await inPanel((root) => root.querySelector('.toast')?.textContent.includes('导入'))));
 
   await menu('导出字幕');
@@ -372,37 +369,11 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('当前话题高亮', (await inPanel((root) => [...root.querySelectorAll('.summary-item')].findIndex((x) => x.classList.contains('active')))) === 2);
   await page.screenshot({ path: join(shotDir, 'e2e-8-summary.png') });
 
-  // 导图
-  await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '导图').click());
-  await waitPanel((root) => root.querySelectorAll('.mindmap-svg [data-time]').length > 0);
-  const branches = await inPanel((root) => root.querySelectorAll('.mindmap-svg [data-time]').length);
-  check('导图画出全部分支', branches === mindmap.branches.length, `${branches} 个`);
-  await inPanel((root) => root.querySelectorAll('.mindmap-svg [data-time] rect, .mindmap-svg [data-time] path')[0].dispatchEvent(new MouseEvent('click', { bubbles: true })));
-  await sleep(300);
-  check('点导图分支跳转', Math.abs((await page.$eval('video', (v) => v.currentTime)) - 0) < 1);
-  await page.screenshot({ path: join(shotDir, 'e2e-9-mindmap.png') });
-  await inPanel((root) => [...root.querySelectorAll('.mindmap-bar button')].find((b) => b.textContent === '放大查看').click());
-  await waitPanel((root) => root.querySelectorAll('.overlay [data-time]').length > 0);
-  check('放大查看显示左右展开的大图', true);
-  await page.screenshot({ path: join(shotDir, 'e2e-10-overlay.png') });
-  await page.keyboard.press('Escape');
-  await waitPanel((root) => !root.querySelector('.overlay'));
-  await inPanel((root) => root.querySelector('.mindmap-bar .primary').click());
-  await page.waitForFunction(() => window.__downloads__.at(-1)?.name.endsWith('_mindmap.png'), { timeout: 10000 });
-  const png = await page.evaluate(() => window.__downloads__.at(-1));
-  check('导出导图 PNG', png.href.startsWith('data:image/png') && png.href.length > 50_000, `${Math.round(png.href.length / 1024)} KB`);
-  const pngSize = await page.evaluate(async (href) => {
-    const img = new Image();
-    img.src = href;
-    await img.decode();
-    return [img.width, img.height];
-  }, png.href);
-  check('PNG 为 2 倍分辨率', pngSize[0] === 3000, pngSize.join('×'));
-
   // 笔记
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '字幕').click());
   await waitPanel((root) => root.querySelectorAll('.row').length > 0);
   check('字幕来源显示为导入的字幕', (await inPanel((root) => root.querySelector('.source')?.textContent)) === '导入的字幕');
+  const beforeStar = await page.$eval('video', (v) => v.currentTime);
   await inPanel((root) => {
     const rows = root.querySelectorAll('.row');
     rows[1].querySelector('.star').click();
@@ -410,7 +381,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   });
   await sleep(200);
   check('收藏两句，笔记标签显示数量', (await inPanel((root) => root.querySelector('.badge')?.textContent)) === '2');
-  check('点星标不会跳转视频', Math.abs((await page.$eval('video', (v) => v.currentTime)) - 0) < 1);
+  check('点星标不会跳转视频', Math.abs((await page.$eval('video', (v) => v.currentTime)) - beforeStar) < 1);
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent.startsWith('笔记')).click());
   await waitPanel((root) => root.querySelectorAll('.note').length === 2);
   await inPanel((root) => root.querySelectorAll('.note .chip')[1].click());
@@ -442,23 +413,8 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await menu('恢复为网站字幕');
   await waitPanel((root) => root.querySelector('.source')?.textContent === 'English + Chinese (Simplified)');
   check('恢复为网站字幕', true);
+  check('不再有导图标签', (await inPanel((root) => [...root.querySelectorAll('.tabs button')].map((b) => b.textContent).join(','))) === '字幕,摘要,笔记2');
 
-  // 导入 skill 生成的导图 PNG
-  if (existsSync(TAO_PNG)) {
-    await menu('导入');
-    const input = await page.evaluateHandle(() =>
-      [...document.documentElement.children].find((e) => e.shadowRoot).shadowRoot.querySelector('.dialog input[type=file]'),
-    );
-    await input.uploadFile(TAO_PNG);
-    await sleep(200);
-    await inPanel((root) => root.querySelector('.dialog .primary').click());
-    await waitPanel((root) => !!root.querySelector('.mindmap-img'));
-    check('导入 skill 生成的导图 PNG', (await inPanel((root) => root.querySelector('.mindmap-img').naturalWidth)) > 500);
-    await page.evaluate(() => document.documentElement.setAttribute('dark', ''));
-    await sleep(200);
-    await page.screenshot({ path: join(shotDir, 'e2e-12-png-dark.png') });
-    await page.evaluate(() => document.documentElement.removeAttribute('dark'));
-  }
 } else {
   console.log('SKIP  M3 场景（缺少 Terence Tao 的 skill 产物）');
 }

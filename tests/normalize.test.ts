@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseJson3 } from '../src/core/json3';
 import { buildCues, joinText, lastAtOrBefore, mergeCues, mergeSentences } from '../src/core/normalize';
+import { cleanText } from '../src/core/text';
 import { formatClock, parseClock } from '../src/core/time';
 
 // 自动字幕：逐词、无标点，中间有一次 1.5 秒的停顿。
@@ -166,6 +167,19 @@ describe('mergeCues', () => {
       { id: 1, start: 0, end: 4000, text: 'What are we calling this big event that happened in October?', trans: '我们该怎么称呼这件大事——十月初发生的那件事？' },
       { id: 2, start: 4000, end: 5000, text: 'Nobody knows.', trans: '没人知道。' },
     ]);
+  });
+});
+
+describe('cleanText', () => {
+  it('去掉 HTML 标签、还原转义字符', () => {
+    expect(cleanText('<b>今天我们的嘉宾是游凯超</b>')).toBe('今天我们的嘉宾是游凯超');
+    expect(cleanText('<font color="#ffff00">It&#39;s  <i>fine</i></font> &amp; ok')).toBe("It's fine & ok");
+    expect(cleanText('a < b and c > d')).toBe('a < b and c > d');
+  });
+
+  it('json3 人工字幕里的标签被去掉', () => {
+    const frags = parseJson3({ events: [{ tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: '<b>Today our guest.</b>' }] }] });
+    expect(frags[0].text).toBe('Today our guest.');
   });
 });
 

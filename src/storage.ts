@@ -48,7 +48,9 @@ export function saveSettings(settings: Settings): Promise<void> {
 }
 
 export async function loadVideoData(videoKey: string): Promise<VideoData> {
-  return { notes: [], ...(await getItem<Partial<VideoData>>(`video:${videoKey}`)) };
+  // 只取认识的字段（旧版本存过的导图数据等会被丢掉）
+  const { transcript, summary, notes } = (await getItem<Partial<VideoData>>(`video:${videoKey}`)) ?? {};
+  return { transcript, summary, notes: notes ?? [] };
 }
 
 export function saveVideoData(videoKey: string, data: VideoData): Promise<void> {

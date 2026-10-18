@@ -570,8 +570,7 @@ mark {
 }
 
 .file-row button,
-.dialog-actions button:not(.primary),
-.mindmap-bar button:not(.primary) {
+.dialog-actions button:not(.primary) {
   border: 1px solid var(--line);
   background: none;
   border-radius: 8px;
@@ -651,9 +650,8 @@ mark {
   font-size: 13px;
 }
 
-/* ---------- 导图 ---------- */
+/* ---------- 笔记 ---------- */
 
-.mindmap,
 .notes {
   display: flex;
   flex-direction: column;
@@ -661,7 +659,6 @@ mark {
   min-height: 0;
 }
 
-.mindmap-bar,
 .notes-bar {
   display: flex;
   align-items: center;
@@ -670,10 +667,6 @@ mark {
   padding: 8px 14px;
 }
 
-.mindmap-bar .hint {
-  flex: 1;
-  margin: 0;
-}
 
 .notes-bar span {
   flex: 1;
@@ -681,61 +674,12 @@ mark {
   font-size: 12px;
 }
 
-.mindmap-body {
-  padding: 0 4px 16px;
-}
 
-.mindmap-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
 
-.mindmap-img {
-  display: block;
-  width: 100%;
-  border-radius: 8px;
-  cursor: zoom-in;
-}
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 32px;
-  overflow-y: auto;
-  background: rgba(0, 0, 0, 0.6);
-}
 
-.overlay-card {
-  position: relative;
-  width: min(1500px, 100%);
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fffdf7;
-  box-shadow: var(--shadow);
-}
 
-.overlay-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #222 !important;
-  font-size: 20px !important;
-}
 
-.mindmap-large {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-/* ---------- 笔记 ---------- */
 
 .note {
   padding: 10px 8px 12px;

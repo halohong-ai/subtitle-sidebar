@@ -5,6 +5,7 @@
 
 import { parseJson3, type Json3 } from '../core/json3';
 import { buildCues } from '../core/normalize';
+import { cleanText } from '../core/text';
 import { parseClock } from '../core/time';
 import type { Fragment, Transcript } from '../core/types';
 import { onCaptured, request } from '../content/bridge';
@@ -189,7 +190,7 @@ async function readTranscriptPanel(signal: AbortSignal): Promise<Fragment[] | nu
   const lines: Fragment[] = [];
   for (const seg of segments) {
     const start = parseClock(seg.querySelector('.segment-timestamp')?.textContent ?? '');
-    const text = (seg.querySelector('.segment-text')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const text = cleanText(seg.querySelector('.segment-text')?.textContent ?? '');
     if (start !== null && text) lines.push({ start, end: start, text });
   }
   for (let i = 0; i < lines.length; i++) {

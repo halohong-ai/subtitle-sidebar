@@ -1,5 +1,6 @@
 // B站字幕轨道的选择、解析和校验（纯函数，便于单测）。
 
+import { cleanText } from '../core/text';
 import type { Fragment } from '../core/types';
 
 /** player/v2 接口 data.subtitle.subtitles 里的一项 */
@@ -51,7 +52,7 @@ export function parseBiliSubtitle(data: BiliSubtitleBody): Fragment[] {
     .map((x) => ({
       start: Math.round(x.from * 1000),
       end: Math.round(x.to * 1000),
-      text: (x.content ?? '').replace(/\s+/g, ' ').trim(),
+      text: cleanText(x.content),
     }))
     .filter((f) => f.text)
     .sort((a, b) => a.start - b.start);

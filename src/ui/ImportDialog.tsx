@@ -5,11 +5,11 @@ import { readFile } from './files';
 interface Props {
   durationMs: number;
   /** 应用导入结果，返回给用户看的结果说明 */
-  onApply: (result: ImportResult, image: string | null) => string;
+  onApply: (result: ImportResult) => string;
   onClose: () => void;
 }
 
-/** 导入：选文件（SRT / JSON / 导图图片），或直接粘贴 AI 的整段回复。 */
+/** 导入：选文件（SRT / 摘要 JSON），或直接粘贴 AI 的整段回复。 */
 export function ImportDialog({ durationMs, onApply, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pasted, setPasted] = useState('');
@@ -20,12 +20,10 @@ export function ImportDialog({ durationMs, onApply, onClose }: Props) {
   const submit = async () => {
     setBusy(true);
     try {
-      const read = await Promise.all(files.map(readFile));
-      const image = read.find((f) => f.isImage)?.content ?? null;
-      const chunks = read.filter((f) => !f.isImage).map((f) => f.content);
+      const chunks = await Promise.all(files.map(readFile));
       if (pasted.trim()) chunks.push(...splitPasted(pasted));
       const result = importTexts(chunks, durationMs);
-      const done = onApply(result, image);
+      const done = onApply(result);
       if (done && result.errors.length === 0) {
         onClose();
         return;
@@ -43,7 +41,7 @@ export function ImportDialog({ durationMs, onApply, onClose }: Props) {
       <div class="dialog" role="dialog" aria-label="导入">
         <h3>导入</h3>
         <p class="hint">
-          把 AI 的整段回复粘贴到下面，会自动识别其中的双语字幕、摘要和导图；也可以选择文件（.srt、.json，或导图图片）。
+          把 AI 的整段回复粘贴到下面，会自动识别其中的双语字幕和摘要；也可以选择文件（.srt、summary.json）。
         </p>
         <textarea
           rows={7}
@@ -62,7 +60,7 @@ export function ImportDialog({ durationMs, onApply, onClose }: Props) {
             ref={fileRef}
             type="file"
             multiple
-            accept=".srt,.json,.txt,.md,image/png,image/jpeg,image/webp"
+            accept=".srt,.json,.txt,.md"
             hidden
             onChange={(e) => setFiles(Array.from(e.currentTarget.files ?? []))}
           />

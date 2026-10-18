@@ -2,9 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { importTexts, splitPasted } from '../src/core/importer';
 import { notesToMarkdown } from '../src/core/markdown';
-import { buildPrompt } from '../src/core/prompt';
+import { buildPrompt, hasChinese } from '../src/core/prompt';
 import { parseSrt, toSrt, toTxt } from '../src/core/srt';
-import { FormatError, parseMindmap, parseSummary } from '../src/core/summary';
+import { FormatError, parseSummary } from '../src/core/summary';
 import { formatSrtTime, parseTimestamp } from '../src/core/time';
 import type { Note } from '../src/core/types';
 
@@ -26,16 +26,6 @@ const SUMMARY = {
   ],
 };
 
-const MINDMAP = {
-  title: '没有英雄的数学',
-  subtitle: '陶哲轩访谈',
-  center: '证明过剩\\n理解稀缺',
-  center_icon: 'bulb',
-  branches: [
-    { title: '开场', icon: 'chat', time: '00:00', points: ['证明从稀缺到过剩'] },
-    { title: '英雄时代终结', icon: 'trophy', time: '01:15', points: ['团队化', '工业化'] },
-  ],
-};
 
 describe('时间戳', () => {
   it('解析多种格式', () => {
@@ -89,7 +79,7 @@ describe('SRT', () => {
   });
 });
 
-describe('摘要与导图', () => {
+describe('摘要', () => {
   it('解析 summary.json', () => {
     const items = parseSummary(SUMMARY);
     expect(items[1]).toEqual({ start: 75439, title: '英雄时代的终结', summary: '陶哲轩的观点。' });
@@ -104,15 +94,7 @@ describe('摘要与导图', () => {
     expect(() => parseSummary(SUMMARY, 60_000)).toThrow(/超出/);
   });
 
-  it('解析导图 spec，\\n 变成换行', () => {
-    const map = parseMindmap(MINDMAP);
-    expect(map.center).toBe('证明过剩\n理解稀缺');
-    expect(map.branches[1]).toEqual({ title: '英雄时代终结', icon: 'trophy', time: 75000, points: ['团队化', '工业化'] });
-  });
 
-  it('导图没有分支时报错', () => {
-    expect(() => parseMindmap({ title: 'x', center: 'y', branches: [] })).toThrow(FormatError);
-  });
 
   const skillSummary = '/Volumes/TU820/Claude/Terence_Tao_No_More_Heroes_summary.json';
   it.skipIf(!existsSync(skillSummary))('能读 skill 生成的真实 summary.json', () => {
@@ -122,18 +104,16 @@ describe('摘要与导图', () => {
 });
 
 describe('导入识别', () => {
-  it('从 AI 回复里拆出三个代码块并识别', () => {
+  it('从 AI 回复里拆出两个代码块并识别', () => {
     const reply = [
       '好的，以下是结果：',
       '```srt', BILINGUAL_SRT, '```',
       '```json', JSON.stringify(SUMMARY), '```',
-      '```json', JSON.stringify(MINDMAP), '```',
     ].join('\n');
     const r = importTexts(splitPasted(reply));
     expect(r.errors).toEqual([]);
     expect(r.srt?.cues).toHaveLength(2);
     expect(r.summary).toHaveLength(2);
-    expect(r.mindmap?.branches).toHaveLength(2);
   });
 
   it('AI 分几次回复的 SRT 拼成一份', () => {
@@ -147,10 +127,8 @@ describe('导入识别', () => {
     expect(importTexts(splitPasted(BILINGUAL_SRT)).srt?.cues).toHaveLength(2);
   });
 
-  it('{summary, mindmap} 合在一起的 JSON', () => {
-    const r = importTexts([JSON.stringify({ summary: SUMMARY, mindmap: MINDMAP })]);
-    expect(r.summary).toHaveLength(2);
-    expect(r.mindmap).toBeDefined();
+  it('包了一层的 {summary: …} 也能识别', () => {
+    expect(importTexts([JSON.stringify({ summary: SUMMARY })]).summary).toHaveLength(2);
   });
 
   it('无法识别的内容给出说明，不影响其他部分', () => {
@@ -161,18 +139,37 @@ describe('导入识别', () => {
 });
 
 describe('提示词', () => {
-  it('包含原文 SRT（不含旧译文）和输出格式要求', () => {
-    const { cues } = parseSrt(BILINGUAL_SRT);
-    const p = buildPrompt({ title: '陶哲轩访谈', url: 'https://x', cues, origIsZh: false });
-    expect(p).toContain('翻译成中文');
-    expect(p).toContain('00:00:00,160 --> 00:00:02,480\nWhat are we calling this big event that');
-    expect(p).not.toContain('我们该怎么称呼');
+  const { cues } = parseSrt(BILINGUAL_SRT);
+  const englishOnly = cues.map((c) => ({ ...c, trans: undefined }));
+
+  it('没有中文：生成中英双语 SRT + 摘要，只给原文', () => {
+    const p = buildPrompt({ title: '陶哲轩访谈', url: 'https://x', cues: englishOnly, lang: 'en' });
+    expect(p).toContain('中英双语字幕');
     expect(p).toContain('```srt');
+    expect(p).toContain('{"items"');
+    expect(p).toContain('00:00:00,160 --> 00:00:02,480\nWhat are we calling this big event that');
   });
 
-  it('中文视频译成英文', () => {
-    const p = buildPrompt({ title: 't', url: 'u', cues: [], origIsZh: true });
-    expect(p).toContain('翻译成英文');
+  it('已有中文译文：只生成摘要，不翻译', () => {
+    const p = buildPrompt({ title: 't', url: 'u', cues, lang: 'en', transLang: 'zh-Hans' });
+    expect(p).toContain('不需要翻译');
+    expect(p).not.toContain('```srt');
+    expect(p).toContain('{"items"');
+    expect(p).toContain('我们该怎么称呼这件大事');
+  });
+
+  it('原文是中文：只生成摘要', () => {
+    const zh = parseSrt('1\n00:00:01,000 --> 00:00:02,000\n大家好\n').cues;
+    const p = buildPrompt({ title: 't', url: 'u', cues: zh, lang: 'zh-CN' });
+    expect(p).toContain('不需要翻译');
+    expect(p).not.toContain('```srt');
+  });
+
+  it('判断是否已有中文', () => {
+    expect(hasChinese({ cues, lang: 'en', transLang: 'zh' })).toBe(true);
+    expect(hasChinese({ cues: englishOnly, lang: 'en', transLang: 'zh' })).toBe(false);
+    expect(hasChinese({ cues: englishOnly, lang: 'ai-zh'.replace('ai-', '') })).toBe(true);
+    expect(hasChinese({ cues: englishOnly, lang: 'ja' })).toBe(false);
   });
 });
 

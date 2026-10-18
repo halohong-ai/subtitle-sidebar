@@ -34,7 +34,7 @@ export function Menu(props: Props) {
           <div class="menu-backdrop" onClick={() => setOpen(false)} />
           <div class="menu-list" role="menu">
             <button type="button" role="menuitem" onClick={run(props.onImport)}>
-              导入字幕 / 摘要 / 导图…
+              导入字幕 / 摘要…
             </button>
             <button
               type="button"

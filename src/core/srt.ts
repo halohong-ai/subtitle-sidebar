@@ -1,3 +1,4 @@
+import { cleanText } from './text';
 import { formatClock, formatSrtTime, parseTimestamp } from './time';
 import type { Cue } from './types';
 
@@ -31,7 +32,7 @@ export function parseSrt(text: string): ParsedSrt {
     const start = parseTimestamp(a);
     const end = parseTimestamp(b);
     if (start === null || end === null) continue;
-    const body = lines.slice(at + 1).filter(Boolean);
+    const body = lines.slice(at + 1).map(cleanText).filter(Boolean);
     if (body.length === 0) continue;
     raw.push({
       start,
