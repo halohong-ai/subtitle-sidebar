@@ -15,11 +15,11 @@ interface Props {
   transLang?: string;
   mode: LangMode;
   onMode: (m: LangMode) => void;
-  /** 调整字号：+1 放大，-1 缩小 */
-  onFontStep: (delta: number) => void;
 }
 
-export function Toolbar({ lang, transLang, mode, onMode, onFontStep }: Props) {
+/** 字幕页的语言切换（双语 / 仅原文 / 仅译文）；只有原文时不显示。 */
+export function Toolbar({ lang, transLang, mode, onMode }: Props) {
+  if (!transLang) return null;
   const modes: Array<[LangMode, string]> = [
     ['both', '双语'],
     ['orig', langShort(lang)],
@@ -27,29 +27,33 @@ export function Toolbar({ lang, transLang, mode, onMode, onFontStep }: Props) {
   ];
   return (
     <div class="toolbar">
-      {transLang && (
-        <div class="segmented" role="group" aria-label="字幕语言">
-          {modes.map(([m, label]) => (
-            <button
-              key={m}
-              type="button"
-              class={mode === m ? 'on' : ''}
-              aria-pressed={mode === m}
-              onClick={() => onMode(m)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-      <div class="font-size" role="group" aria-label="字号">
-        <button type="button" title="缩小字号" onClick={() => onFontStep(-1)}>
-          A−
-        </button>
-        <button type="button" title="放大字号" onClick={() => onFontStep(1)}>
-          A+
-        </button>
+      <div class="segmented" role="group" aria-label="字幕语言">
+        {modes.map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            class={mode === m ? 'on' : ''}
+            aria-pressed={mode === m}
+            onClick={() => onMode(m)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+    </div>
+  );
+}
+
+/** 字号按钮，放在浮窗顶栏，字幕、摘要、笔记三页共用。 */
+export function FontSize({ onStep }: { onStep: (delta: number) => void }) {
+  return (
+    <div class="font-size" role="group" aria-label="字号">
+      <button type="button" title="缩小字号" aria-label="缩小字号" onClick={() => onStep(-1)}>
+        A−
+      </button>
+      <button type="button" title="放大字号" aria-label="放大字号" onClick={() => onStep(1)}>
+        A+
+      </button>
     </div>
   );
 }

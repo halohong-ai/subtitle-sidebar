@@ -416,6 +416,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await sleep(200);
   const after = await sumSize();
   check('摘要页有字号按钮，放大后摘要文字变大', after === before + 2, `${before}px → ${after}px`);
+  check('字号按钮只有顶栏一套', (await inPanel((root) => root.querySelectorAll('.font-size').length)) === 1 && (await inPanel((root) => !!root.querySelector('header .font-size'))));
   await page.screenshot({ path: join(shotDir, 'e2e-8-summary.png') });
 
   // 笔记

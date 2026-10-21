@@ -19,10 +19,10 @@ import { ImportDialog } from './ImportDialog';
 import { Menu } from './Menu';
 import { NotesTab } from './NotesTab';
 import { SummaryTab } from './SummaryTab';
-import { Toolbar } from './Toolbar';
+import { FontSize, Toolbar } from './Toolbar';
 import { TranscriptTab } from './TranscriptTab';
 
-const MIN_WIDTH = 280;
+const MIN_WIDTH = 300;
 const MAX_WIDTH = 640;
 const MIN_FONT = 11;
 const MAX_FONT = 22;
@@ -283,6 +283,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
             </button>
           ))}
         </nav>
+        <FontSize onStep={stepFont} />
         <Menu
           hasTranscript={!!transcript}
           imported={!!data?.transcript}
@@ -322,7 +323,6 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
               transLang={transcript.transLang}
               mode={settings.langMode}
               onMode={(m) => update({ langMode: m })}
-              onFontStep={stepFont}
             />
           )}
           {!transcript && status.kind === 'loading' && <p class="state">正在读取字幕…</p>}
@@ -348,16 +348,6 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
             />
           )}
         </>
-      )}
-
-      {tab !== 'transcript' && (
-        // 摘要和笔记页只显示字号按钮（与字幕页共用同一个字号）
-        <Toolbar
-          lang=""
-          mode={settings.langMode}
-          onMode={() => {}}
-          onFontStep={stepFont}
-        />
       )}
 
       {tab === 'summary' && (
@@ -468,10 +458,11 @@ function stopIfTyping(e: KeyboardEvent) {
 
 /** 拖动浮窗左边缘调整宽度，松手时保存。 */
 function useResize(saved: number, onDone: (w: number) => void) {
-  const [width, setWidth] = useState(saved);
+  // 以前保存的宽度可能小于现在的最小宽度
+  const [width, setWidth] = useState(clamp(saved, MIN_WIDTH, MAX_WIDTH));
   const dragging = useRef(false);
   useEffect(() => {
-    if (!dragging.current) setWidth(saved);
+    if (!dragging.current) setWidth(clamp(saved, MIN_WIDTH, MAX_WIDTH));
   }, [saved]);
 
   const onPointerDown = (e: PointerEvent) => {

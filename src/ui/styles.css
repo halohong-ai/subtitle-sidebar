@@ -43,6 +43,7 @@ button {
 }
 
 .panel {
+  container: panel / inline-size;
   position: fixed;
   top: 68px;
   right: 12px;
@@ -78,8 +79,8 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 10px 8px 14px;
+  gap: 4px;
+  padding: 10px 8px 8px 10px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -93,7 +94,7 @@ header {
 .tabs button {
   border: none;
   background: none;
-  padding: 5px 10px;
+  padding: 5px 9px;
   border-radius: 8px;
   font-size: 14px;
   color: var(--muted);
@@ -102,6 +103,13 @@ header {
 
 .tabs button:hover {
   background: var(--hover);
+}
+
+/* 浮窗较窄时收紧标签，给顶栏的字号按钮让位 */
+@container panel (max-width: 360px) {
+  .tabs button {
+    padding: 5px 6px;
+  }
 }
 
 .tabs button.on {
@@ -244,17 +252,29 @@ button.primary:disabled {
   overflow: hidden;
 }
 
-/* 只有字号按钮时（摘要、笔记页）也靠右 */
+/* 顶栏里的字号按钮：比工具栏按钮紧凑，窄浮窗也放得下 */
 .font-size {
-  margin-left: auto;
+  flex: none;
 }
 
-.segmented button,
-.font-size button {
+.segmented button {
   border: none;
   background: none;
   padding: 4px 10px;
   font-size: 12px;
+}
+
+.font-size button {
+  border: none;
+  background: none;
+  padding: 3px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.font-size button:hover {
+  color: var(--fg);
 }
 
 .segmented button + button,
