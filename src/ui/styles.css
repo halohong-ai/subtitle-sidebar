@@ -244,6 +244,11 @@ button.primary:disabled {
   overflow: hidden;
 }
 
+/* 只有字号按钮时（摘要、笔记页）也靠右 */
+.font-size {
+  margin-left: auto;
+}
+
 .segmented button,
 .font-size button {
   border: none;
@@ -669,12 +674,12 @@ mark {
 }
 
 .summary-body strong {
-  font-size: 14px;
+  font-size: var(--fs, 14px);
 }
 
 .summary-body span {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(var(--fs, 14px) - 1px);
 }
 
 /* ---------- 笔记 ---------- */
@@ -757,7 +762,7 @@ mark {
 
 .note-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs, 14px);
 }
 
 .summary-item {
@@ -779,9 +784,10 @@ mark {
 }
 
 .note .orig {
-  font-size: 14px;
+  font-size: var(--fs, 14px);
 }
 
 .note textarea {
   margin-top: 4px;
+  font-size: calc(var(--fs, 14px) - 1px);
 }

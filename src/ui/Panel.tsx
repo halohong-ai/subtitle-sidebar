@@ -184,6 +184,13 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   }
 
   const filename = safeFilename(adapter.title());
+  // 在最新的字号上累加（连续快速点击也不会丢）
+  const stepFont = (delta: number) =>
+    setSettings((s) => {
+      const next = { ...s, fontSize: clamp(s.fontSize + delta, MIN_FONT, MAX_FONT) };
+      saveSettings(next);
+      return next;
+    });
 
   const actions = {
     copyPrompt: async (mode: PromptMode) => {
@@ -253,7 +260,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     <aside
       class="panel"
       data-theme={theme}
-      style={{ width: `${resize.width}px` }}
+      style={{ width: `${resize.width}px`, '--fs': `${settings.fontSize}px` }}
       onKeyDown={stopIfTyping}
       onKeyUp={stopIfTyping}
       onKeyPress={stopIfTyping}
@@ -313,9 +320,8 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
               lang={transcript.lang}
               transLang={transcript.transLang}
               mode={settings.langMode}
-              fontSize={settings.fontSize}
               onMode={(m) => update({ langMode: m })}
-              onFontSize={(n) => update({ fontSize: clamp(n, MIN_FONT, MAX_FONT) })}
+              onFontStep={stepFont}
             />
           )}
           {!transcript && status.kind === 'loading' && <p class="state">正在读取字幕…</p>}
@@ -335,13 +341,22 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
               key={`${transcript.videoKey}:${transcript.source}`}
               cues={transcript.cues}
               mode={settings.langMode}
-              fontSize={settings.fontSize}
               getVideo={getVideo}
               notedStarts={startsOf(notes, 'cue')}
               onToggleNote={onToggleNote}
             />
           )}
         </>
+      )}
+
+      {tab !== 'transcript' && (
+        // 摘要和笔记页只显示字号按钮（与字幕页共用同一个字号）
+        <Toolbar
+          lang=""
+          mode={settings.langMode}
+          onMode={() => {}}
+          onFontStep={stepFont}
+        />
       )}
 
       {tab === 'summary' && (

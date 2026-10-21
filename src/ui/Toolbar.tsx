@@ -14,12 +14,12 @@ interface Props {
   lang: string;
   transLang?: string;
   mode: LangMode;
-  fontSize: number;
   onMode: (m: LangMode) => void;
-  onFontSize: (n: number) => void;
+  /** 调整字号：+1 放大，-1 缩小 */
+  onFontStep: (delta: number) => void;
 }
 
-export function Toolbar({ lang, transLang, mode, fontSize, onMode, onFontSize }: Props) {
+export function Toolbar({ lang, transLang, mode, onMode, onFontStep }: Props) {
   const modes: Array<[LangMode, string]> = [
     ['both', '双语'],
     ['orig', langShort(lang)],
@@ -43,10 +43,10 @@ export function Toolbar({ lang, transLang, mode, fontSize, onMode, onFontSize }:
         </div>
       )}
       <div class="font-size" role="group" aria-label="字号">
-        <button type="button" title="缩小字号" onClick={() => onFontSize(fontSize - 1)}>
+        <button type="button" title="缩小字号" onClick={() => onFontStep(-1)}>
           A−
         </button>
-        <button type="button" title="放大字号" onClick={() => onFontSize(fontSize + 1)}>
+        <button type="button" title="放大字号" onClick={() => onFontStep(1)}>
           A+
         </button>
       </div>

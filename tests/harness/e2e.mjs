@@ -405,6 +405,17 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('点摘要跳到话题开头', Math.abs(t3 - expect3) < 0.5, `${t3.toFixed(1)}s`);
   await sleep(500);
   check('当前话题高亮', (await inPanel((root) => [...root.querySelectorAll('.summary-item')].findIndex((x) => x.classList.contains('active')))) === 2);
+  // 摘要页也能调字号，且三页共用
+  const sumSize = () => inPanel((root) => parseFloat(getComputedStyle(root.querySelector('.summary-body strong')).fontSize));
+  const before = await sumSize();
+  await inPanel((root) => {
+    const plus = root.querySelector('.font-size button[title="放大字号"]');
+    plus.click();
+    plus.click();
+  });
+  await sleep(200);
+  const after = await sumSize();
+  check('摘要页有字号按钮，放大后摘要文字变大', after === before + 2, `${before}px → ${after}px`);
   await page.screenshot({ path: join(shotDir, 'e2e-8-summary.png') });
 
   // 笔记
@@ -442,6 +453,8 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   check('收藏摘要，笔记数变为 3，且不跳转视频', (await inPanel((root) => root.querySelector('.badge')?.textContent)) === '3' && Math.abs((await page.$eval('video', (v) => v.currentTime)) - beforeSumStar) < 1);
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent.startsWith('笔记')).click());
   await waitPanel((root) => root.querySelectorAll('.note').length === 3);
+  const noteSize = await inPanel((root) => parseFloat(getComputedStyle(root.querySelector('.note .orig')).fontSize));
+  check('笔记页文字跟随同一字号', noteSize === after, `${noteSize}px`);
   const sumNote = await inPanel((root) => {
     const n = [...root.querySelectorAll('.note')].find((x) => x.querySelector('.chip.summary'));
     return n?.querySelector('.note-title')?.textContent;

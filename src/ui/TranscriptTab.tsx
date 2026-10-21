@@ -8,14 +8,13 @@ import type { LangMode } from '../storage';
 interface Props {
   cues: Cue[];
   mode: LangMode;
-  fontSize: number;
   getVideo: () => HTMLVideoElement | null;
   /** 已收藏句子的开始时间 */
   notedStarts: Set<number>;
   onToggleNote: (cue: Cue) => void;
 }
 
-export function TranscriptTab({ cues, mode, fontSize, getVideo, notedStarts, onToggleNote }: Props) {
+export function TranscriptTab({ cues, mode, getVideo, notedStarts, onToggleNote }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(-1);
   const [follow, setFollow] = useState(true);
@@ -143,7 +142,7 @@ export function TranscriptTab({ cues, mode, fontSize, getVideo, notedStarts, onT
   const current = matches.length ? matches[cursor] : -1;
 
   return (
-    <div class="transcript" style={{ '--fs': `${fontSize}px` }}>
+    <div class="transcript">
       <div class="search">
         <div class="player-controls" role="group" aria-label="逐句控制">
           <button type="button" title="上一句（[）" aria-label="上一句" onClick={() => step(-1)}>
