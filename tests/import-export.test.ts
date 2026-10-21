@@ -63,6 +63,44 @@ describe('SRT', () => {
     expect(cues[0].text).toBe('大家好');
   });
 
+  it('纯中文 SRT 里夹着外文名、数字的行也算中文', () => {
+    const srt = [
+      '我们还投资了 Ailios，投资了 Murilla，投资了 Reflex Aerospace。',
+      '是 2023 还是 2020 年？',
+      '去年我们投资了 Black Forest Labs。',
+    ]
+      .map((line, i) => `${i + 1}\n00:00:0${i},000 --> 00:00:0${i + 1},000\n${line}`)
+      .join('\n\n');
+    const { cues, origIsCjk, hasTrans } = parseSrt(srt);
+    expect(origIsCjk).toBe(true);
+    expect(hasTrans).toBe(false);
+    expect(cues[0].text).toContain('Reflex Aerospace');
+  });
+
+  it('纯中文 SRT 里个别认不准的行，按整份是中文处理', () => {
+    const lines = Array.from({ length: 20 }, (_, i) => (i === 5 ? 'OK, AI agents.' : `第 ${i} 句中文`));
+    const srt = lines
+      .map((l, i) => `${i + 1}\n00:00:${String(i).padStart(2, '0')},000 --> 00:00:${String(i).padStart(2, '0')},900\n${l}`)
+      .join('\n\n');
+    const { cues, origIsCjk } = parseSrt(srt);
+    expect(origIsCjk).toBe(true);
+    expect(cues[5].text).toBe('OK, AI agents.');
+    expect(cues.every((c) => !c.trans)).toBe(true);
+  });
+
+  it('英文句里夹一两个汉字仍是原文', () => {
+    const { cues } = parseSrt('1\n00:00:01,000 --> 00:00:02,000\nWe flew to 北京 last week.\n我们上周飞去了北京。\n');
+    expect(cues[0].text).toBe('We flew to 北京 last week.');
+    expect(cues[0].trans).toBe('我们上周飞去了北京。');
+  });
+
+  const REAL_SRT = '/Volumes/TU820/Claude/202610212225.srt';
+  it.runIf(existsSync(REAL_SRT))('真实文件：AI 生成的纯中文字幕整份识别为中文', () => {
+    const { origIsCjk, hasTrans } = parseSrt(readFileSync(REAL_SRT, 'utf8'));
+    expect(origIsCjk).toBe(true);
+    expect(hasTrans).toBe(false);
+  });
+
   it('兼容 BOM、Windows 换行和缺序号', () => {
     const { cues } = parseSrt('﻿00:00:01,000 --> 00:00:02,000\r\nHello\r\n\r\n');
     expect(cues).toHaveLength(1);

@@ -221,11 +221,12 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
   const applyImport = (result: ImportResult): string => {
     const parts: string[] = [];
     // 只有中文的字幕（「摘要+中字校准」的结果）：合到现有字幕上
-    const chineseOnly = !!result.srt?.origIsCjk && !result.srt.hasTrans && !!transcript;
+    // 以前误识别导入的字幕原文是空的，不能当底稿，改用网站字幕
+    const base = transcript && transcript.cues.some((c) => c.text) ? transcript : siteTranscript;
+    const chineseOnly = !!result.srt?.origIsCjk && !result.srt.hasTrans && !!base;
     updateData((d) => {
       const next = { ...d };
-      if (result.srt && chineseOnly) {
-        const base = transcript!;
+      if (result.srt && base && chineseOnly) {
         const origIsZh = base.lang.toLowerCase().startsWith('zh');
         next.transcript = {
           ...base,
