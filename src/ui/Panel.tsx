@@ -102,6 +102,12 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
     return () => ctrl.abort();
   }, [adapter, videoKey, reloadTick]);
 
+  /** 不用缓存，重新向网站读一次字幕（译文没取到时用）。 */
+  const reloadSite = () => {
+    if (videoKey) cache.delete(videoKey);
+    setReloadTick((n) => n + 1);
+  };
+
   const { data, updateData } = useVideoData(videoKey);
 
   // 全屏时隐藏；跟随网站的深色模式
@@ -304,9 +310,16 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
       </header>
 
       {transcript && tab === 'transcript' && (
-        <p class="source" title={transcript.label}>
-          {transcript.label}
-        </p>
+        <div class="source">
+          <span class="source-label" title={transcript.label}>
+            {transcript.label}
+          </span>
+          {transcript.source === 'site' && (
+            <button type="button" class="reload" title="重新载入字幕" aria-label="重新载入字幕" onClick={reloadSite}>
+              ↻
+            </button>
+          )}
+        </div>
       )}
 
       {toast && (
@@ -332,7 +345,7 @@ export function Panel({ adapter }: { adapter: SiteAdapter }) {
           {!transcript && status.kind === 'error' && (
             <div class="state">
               <p>{status.message}</p>
-              <button type="button" class="retry" onClick={() => setReloadTick((n) => n + 1)}>
+              <button type="button" class="retry" onClick={reloadSite}>
                 重试
               </button>
             </div>

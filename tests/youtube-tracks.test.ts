@@ -41,8 +41,14 @@ describe('chooseTracks', () => {
     expect(plan.secondary?.tlang).toBe('zh-Hans');
   });
 
-  it('只有阿拉伯语自动字幕、另有人工英文字幕：视为阿拉伯语原声，英文是翻译', () => {
+  it('只有阿拉伯语自动字幕、另有人工英文字幕：用英文作原文，不选阿拉伯语', () => {
     const plan = chooseTracks([t('ar', 'asr'), t('en')])!;
+    expect(plan.primary.track.languageCode).toBe('en');
+    expect(plan.secondary?.tlang).toBe('zh-Hans');
+  });
+
+  it('没有中英文轨道时仍用自动字幕的语言', () => {
+    const plan = chooseTracks([t('fr'), t('ar', 'asr')])!;
     expect(plan.primary.track.languageCode).toBe('ar');
   });
 

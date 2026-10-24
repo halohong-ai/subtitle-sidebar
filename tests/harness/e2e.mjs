@@ -55,7 +55,7 @@ await waitPanel((root) => root.querySelectorAll('.row').length > 0);
 
 const s1 = await inPanel((root) => ({
   rows: root.querySelectorAll('.row').length,
-  source: root.querySelector('.source')?.textContent,
+  source: root.querySelector('.source-label')?.textContent,
   first: [...root.querySelectorAll('.row')[0].querySelectorAll('p')].map((p) => p.textContent),
   modes: [...root.querySelectorAll('.segmented button')].map((b) => b.textContent),
 }));
@@ -63,6 +63,17 @@ check('人工字幕：读到句子', s1.rows > 100, `${s1.rows} 句`);
 check('人工字幕：来源说明', s1.source === 'English + Chinese (Simplified)', s1.source);
 check('人工字幕：首句中英配对', s1.first.length === 2 && /[一-鿿]/.test(s1.first[1]), JSON.stringify(s1.first));
 check('语言切换按钮', s1.modes.join(',') === '双语,英,中', s1.modes.join(','));
+
+// 重新载入：不走缓存，重新请求
+check('多音轨视频不选阿拉伯语配音字幕', s1.source.startsWith('English'), s1.source);
+check('有重新载入按钮', await inPanel((root) => !!root.querySelector('.source .reload')));
+const reqsBefore = await page.evaluate(() => window.__requests__.length);
+await inPanel((root) => root.querySelector('.source .reload').click());
+const refetched = await page
+  .waitForFunction((n) => window.__requests__.length > n, { timeout: 15000 }, reqsBefore)
+  .then(() => true, () => false);
+check('点 ↻ 不走缓存，重新请求字幕', refetched);
+await waitPanel((root) => root.querySelector('.source-label')?.textContent === 'English + Chinese (Simplified)' && root.querySelectorAll('.row').length > 100);
 
 const reqs = await page.evaluate(() => window.__requests__);
 check('先直接请求（无 PO Token）', reqs[0]?.pot === false);
@@ -147,17 +158,18 @@ await inPanel((root) => root.querySelectorAll('.segmented button')[0].click());
 
 // ---------- 场景 2：站内跳转到自动字幕视频（机翻 429） ----------
 await page.click('a[href="?v=ASR00000001"]');
-await waitPanel((root) => root.querySelector('.source')?.textContent?.startsWith('English (auto'));
+await waitPanel((root) => root.querySelector('.source-label')?.textContent?.startsWith('English (auto'));
 await waitPanel((root) => root.querySelectorAll('.row').length > 1000);
 const s5 = await inPanel((root) => ({
   rows: root.querySelectorAll('.row').length,
-  source: root.querySelector('.source')?.textContent,
+  source: root.querySelector('.source-label')?.textContent,
   segmented: !!root.querySelector('.segmented'),
   first: root.querySelector('.row .orig')?.textContent,
   trans: root.querySelectorAll('.trans').length,
 }));
 check('站内跳转后换成新视频的字幕', s5.rows > 3000, `${s5.rows} 句`);
-check('机翻被限流时只显示原文，不报错', s5.trans === 0 && !s5.segmented, s5.source);
+check('机翻被限流时只显示原文，不报错，提示可重试', s5.trans === 0 && !s5.segmented && s5.source.includes('↻'), s5.source);
+check('机翻失败后自动再试一次', (await page.evaluate(() => window.__requests__.filter((r) => r.tlang && r.pot).length)) >= 2);
 check('自动字幕合句后长度适中', (s5.first?.split(' ').length ?? 0) <= 22, s5.first);
 await page.evaluate(() => {
   window.__clipboard__ = '';
@@ -259,7 +271,7 @@ await page.goto(`${biliBase}?site=bili&bv=BV1TEST00001&p=1`);
 await waitPanel((root) => root.querySelectorAll('.row').length > 0);
 const b1 = await inPanel((root) => ({
   rows: root.querySelectorAll('.row').length,
-  source: root.querySelector('.source')?.textContent,
+  source: root.querySelector('.source-label')?.textContent,
   first: [...root.querySelectorAll('.row')[0].querySelectorAll('p')].map((p) => p.textContent),
   modes: [...root.querySelectorAll('.segmented button')].map((b) => b.textContent),
 }));
@@ -422,7 +434,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   // 笔记
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '字幕').click());
   await waitPanel((root) => root.querySelectorAll('.row').length > 0);
-  check('字幕来源显示为导入的字幕', (await inPanel((root) => root.querySelector('.source')?.textContent)) === '导入的字幕');
+  check('字幕来源显示为导入的字幕', (await inPanel((root) => root.querySelector('.source-label')?.textContent)) === '导入的字幕');
   const beforeStar = await page.$eval('video', (v) => v.currentTime);
   await inPanel((root) => {
     const rows = root.querySelectorAll('.row');
@@ -487,7 +499,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   });
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '字幕').click());
   await menu('恢复为网站字幕');
-  await waitPanel((root) => root.querySelector('.source')?.textContent === 'English + Chinese (Simplified)');
+  await waitPanel((root) => root.querySelector('.source-label')?.textContent === 'English + Chinese (Simplified)');
   check('恢复为网站字幕', true);
 
   // 摘要+中字校准：AI 返回只含中文的 SRT，导入后与英文原文合成双语
@@ -521,7 +533,7 @@ if (existsSync(TAO_SRT) && existsSync(TAO_SUMMARY)) {
   await inPanel((root) => root.querySelector('.dialog .primary').click());
   await waitPanel((root) => !root.querySelector('.dialog'));
   await inPanel((root) => [...root.querySelectorAll('.tabs button')].find((b) => b.textContent === '字幕').click());
-  await waitPanel((root) => root.querySelector('.source')?.textContent === '英文 + 中文（AI 校准）');
+  await waitPanel((root) => root.querySelector('.source-label')?.textContent === '英文 + 中文（AI 校准）');
   const calibRows = await inPanel((root) =>
     [...root.querySelectorAll('.row')].slice(0, 2).map((r) => [...r.querySelectorAll('p')].map((p) => p.textContent)),
   );

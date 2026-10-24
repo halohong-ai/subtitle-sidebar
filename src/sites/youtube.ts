@@ -16,6 +16,7 @@ import { chooseTracks, trackUrl, type TrackChoice } from './youtube-tracks';
 const PLAYER_WAIT_MS = 10000;
 const CAPTURE_WAIT_MS = 6000;
 const PANEL_WAIT_MS = 8000;
+const SECONDARY_RETRY_MS = 1500;
 
 export const youtube: SiteAdapter = {
   id: 'youtube',
@@ -83,16 +84,27 @@ export const youtube: SiteAdapter = {
       } satisfies Transcript;
     }
 
-    const secondary = plan.secondary
-      ? await fetchTrack(plan.secondary, videoId, signal)
-      : null;
+    // 译文（尤其是 YouTube 机翻）偶尔被限流，隔一会儿再试一次
+    let secondary: Fragment[] | null = null;
+    if (plan.secondary) {
+      secondary = await fetchTrack(plan.secondary, videoId, signal);
+      if (!secondary) {
+        await new Promise((r) => setTimeout(r, SECONDARY_RETRY_MS));
+        signal.throwIfAborted();
+        secondary = await fetchTrack(plan.secondary, videoId, signal);
+      }
+    }
 
     return {
       videoKey,
       source: 'site',
       lang: plan.primary.track.languageCode,
       transLang: secondary ? (plan.secondary!.tlang ?? plan.secondary!.track.languageCode) : undefined,
-      label: secondary ? `${plan.primary.label} + ${plan.secondary!.label}` : plan.primary.label,
+      label: secondary
+        ? `${plan.primary.label} + ${plan.secondary!.label}`
+        : plan.secondary
+          ? `${plan.primary.label}（译文没取到，可点 ↻ 重试）`
+          : plan.primary.label,
       cues: buildCues(primary, primaryAsr, secondary ?? undefined),
     } satisfies Transcript;
   },

@@ -26,16 +26,15 @@ function zhRank(lang: string): number {
 }
 
 /**
- * 视频说话的语言：以自动字幕的语言为准。开了 AI 配音（多音轨）的视频会有多条
- * 自动字幕（如原声英文 + 阿拉伯语配音），按英文、中文、其他的顺序取；
- * 没有自动字幕时，按英文、中文、第一条的顺序取。
+ * 原文的语言：英文、中文优先（用户只看中英）。开了 AI 配音（多音轨）的视频会有
+ * 多条自动字幕（如原声英文 + 阿拉伯语配音），先在自动字幕里找英文、中文，
+ * 再在人工字幕里找；都没有才用第一条自动字幕（或第一条轨道）的语言。
  */
 function spokenLanguage(tracks: CaptionTrackInfo[]): string {
   const asr = tracks.filter(isAsr);
-  const pool = asr.length ? asr : tracks;
-  const pick = pool.find((t) => base(t.languageCode) === 'en') ??
-    pool.find((t) => base(t.languageCode) === 'zh') ??
-    pool[0];
+  const find = (pool: CaptionTrackInfo[], lang: string) => pool.find((t) => base(t.languageCode) === lang);
+  const pick =
+    find(asr, 'en') ?? find(asr, 'zh') ?? find(tracks, 'en') ?? find(tracks, 'zh') ?? asr[0] ?? tracks[0];
   return pick.languageCode;
 }
 
