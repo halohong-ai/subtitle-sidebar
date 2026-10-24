@@ -1,0 +1,6 @@
+{
+  "name": { "message": "字幕侧栏 - YouTube/B站双语字幕浮窗" },
+  "description": {
+    "message": "在 YouTube 和 B站视频旁显示双语字幕列表：随播放滚动高亮，点句跳转，全文搜索，单句循环，收藏好句导出笔记。"
+  }
+}

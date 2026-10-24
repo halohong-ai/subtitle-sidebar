@@ -1,20 +1,40 @@
 {
   "manifest_version": 3,
-  "name": "字幕侧栏 Subtitle Sidebar",
-  "version": "0.3.0",
-  "description": "在 YouTube 和 B站视频右侧显示可滚动、可点击跳转、可搜索的双语字幕浮窗。",
+  "name": "__MSG_name__",
+  "version": "1.0.0",
+  "description": "__MSG_description__",
+  "default_locale": "en",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "minimum_chrome_version": "111",
-  "permissions": ["storage", "unlimitedStorage"],
+  "permissions": [
+    "storage",
+    "unlimitedStorage"
+  ],
   "content_scripts": [
     {
-      "matches": ["*://www.youtube.com/*", "*://www.bilibili.com/video/*"],
-      "js": ["main-world.js"],
+      "matches": [
+        "*://www.youtube.com/*",
+        "*://www.bilibili.com/video/*"
+      ],
+      "js": [
+        "main-world.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["*://www.youtube.com/*", "*://www.bilibili.com/video/*"],
-      "js": ["content.js"],
+      "matches": [
+        "*://www.youtube.com/*",
+        "*://www.bilibili.com/video/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]
