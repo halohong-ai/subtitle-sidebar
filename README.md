@@ -33,6 +33,8 @@ npm run build
 
 然后在 Chrome 打开 `chrome://extensions`（Edge 为 `edge://extensions`），打开右上角「开发者模式」，点「加载已解压的扩展程序」，选择 `dist/` 目录。改代码后重新 `npm run build`，再在扩展页点刷新按钮即可。
 
+打包上架用的 zip：`npm run pack`。上架材料和步骤见 [store/README.md](store/README.md)。
+
 ## 功能
 
 - 自动读取视频自带字幕：人工字幕优先，没有就用自动字幕；开了 AI 配音的多音轨视频，优先取英文原声的自动字幕；去掉字幕里的 HTML 格式标记（如 `<b>`）
