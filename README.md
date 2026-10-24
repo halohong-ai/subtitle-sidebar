@@ -134,3 +134,7 @@ python3 tests/harness/prepare-data.py a_bilingual.srt [b_bilingual.srt]
 - [ ] 带 `<b>` 等标记的字幕显示干净
 - [ ] 收藏句子和摘要话题、写批注、导出 Markdown，在 Obsidian / Notion 里时间戳链接能打开视频对应位置
 - [ ] 刷新页面、换视频再回来，导入的内容和笔记都还在
+
+## 许可证
+
+[MIT](LICENSE)
