@@ -2,9 +2,29 @@
 
 Chrome / Edge 扩展：在 YouTube 和 B站视频右侧显示字幕浮窗，随播放自动滚动、点哪句跳哪句、可全文搜索，支持双语对照。
 
-当前版本：**1.0.0**，全部功能免费。上架材料和步骤见 [store/README.md](store/README.md)。
+当前版本：**1.0.0**，全部功能免费，不收集任何数据。
 
-## 安装（开发版）
+![字幕侧栏在 YouTube 上的样子](store/screenshots/0-real-bilingual.png)
+
+## 安装
+
+### 从商店安装（推荐）
+
+即将上架 Chrome 应用商店和 Edge 加载项商店，上架后在这里放链接。商店安装的版本会自动更新。
+
+### 手动安装
+
+不需要终端，也不需要装任何开发工具：
+
+1. 打开 [Releases 页面](https://github.com/halohong-ai/subtitle-sidebar/releases/latest)，下载 `subtitle-sidebar-<版本号>.zip`
+2. 解压，得到一个文件夹。把它放在一个不会删掉的位置，删了扩展就失效
+3. Chrome 地址栏输入 `chrome://extensions` 回车（Edge 输入 `edge://extensions`），打开右上角的「开发者模式」
+4. 点「加载已解压的扩展程序」，选第 2 步解压出来的文件夹
+5. 打开任意一个 YouTube 或 B站视频，右侧出现字幕浮窗就装好了
+
+手动安装的版本不会自动更新。有新版本时重复第 1、2 步，用新文件夹替换旧文件夹，再到扩展页点一下刷新按钮。
+
+## 从源码构建（开发者）
 
 ```bash
 npm install
